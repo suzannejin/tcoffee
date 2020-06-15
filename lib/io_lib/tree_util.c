@@ -8125,7 +8125,6 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   if (A->len_aln==0)return msa;
   nnseq=(msa)?(A->nseq+(msa->next)->nseq-1):A->nseq;  // number of sequences of the merged parent msa
 
-
   // * fill up the look up section: pos, with as many rows and columns as A
   // Each row is a sequence in A, the subMSA
   // Each column is either -1 (gap) or an integer (col of the residue in S, the sequence dataset)
@@ -8175,8 +8174,8 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
     }
 	}
     // External gaps in parent S2
-    if ( (S2[seq][0])->index==0 ) startGAP=1;
-    if ( (S2[seq][0])->next ) endGAP=1;
+    if ( (S2[seq][0])->index>0 ) startGAP=1;
+    if ( (S2[seq][S->len[seq]-1])->next->aa!=-1 ) endGAP=1;
 
     // * Homoplasy 1
     // TODO the extension of gaps in child (smaller) because of gaps in parent should have different weight than the same in parent (larger)
@@ -8221,7 +8220,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
     }
 
     // * whomoplasy2
-    if (startgap==1 || endGAP==1)r=-1; else r=0;  // reset r
+    if (startgap==1 || startGAP==1)r=-1; else r=0;  // reset r
     while(r<rend)
     {
       ALNcol *start, *end, *last;
@@ -8231,29 +8230,30 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       int sub_max, main_max;
       float sub_avg, main_avg;
       g_child=re_child=g_main=re_main=0;
+      cstart=cend=0;
+      start=end=msa->next;
 
       // Count gaps and res in child, keep the lowest count -> parsimony
-      if (r==-1) {cstart=0; cend=rpos[0];}
-      else if (r==len-1) {cstart=rpos[r]+1; cend=A->len_aln;}
-      else {cstart=rpos[r]+1; cend=rpos[r+1];}
+      if ((r==-1) && (startgap==1)) {cstart=0; cend=rpos[0];}
+      else if ((r==len-1) && (endgap==1)) {cstart=rpos[r]+1; cend=A->len_aln;}
+      else if ((r!=-1) && (r!=len-1)) {cstart=rpos[r]+1; cend=rpos[r+1];}
       for (c=cstart; c<cend; c++)
       {
         g_child+=gapcount[c];
         re_child+=rescount[c];
       }
-    
       // Parent
-      if (r==-1) {start=msa->next; end=S2[seq][0]; r=0; rup=0;}
-      else if (r==len-1) {start=S2[seq][r]->next; end=start; while(end->next->aa!=-1)end=end->next; rup=1;}
-      else {start=(S2[seq][r])->next; end=(S2[seq][r+1]); rup=1;}
+      if ((r==-1) && (startGAP==1)) {start=msa->next; end=S2[seq][0];}
+      else if ((r==len-1) && (endGAP==1)) {start=S2[seq][r]->next; end=start; while(end->next->aa!=-1)end=end->next;}
+      else if ((r!=-1) && (r!=len-1)) {start=(S2[seq][r])->next; end=(S2[seq][r+1]);}
       while (start!=end)
       {
         g_main+=start->ngap;
         re_main+=start->nres;
         start=start->next;
       }
-      
       // Update homoplasy
+      if (r==-1) {r=0; rup=0;} else {rup=1;}
       sub=MIN(g_child,re_child); main=MIN(g_main,re_main);
       sub_max=MAX(g_child,re_child); main_max=MAX(g_main,re_main);
       sub_avg=(g_child*1.0 + re_child*1.0)/2; main_avg=(g_main*1.0 + re_main*1.0)/2;     
@@ -8273,7 +8273,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   }
 
 
-
+  printf("S2\n");
   // * Update S2
   // If a col in A is not mapped to S2 yet, then allocate ALNcol to the entire column (A->len_aln), where nres=rescount[c]
   // If a col in A is already mapped to S2 update nres+=rescount[c]
