@@ -8272,8 +8272,6 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       vfree (rpos);
   }
 
-
-  printf("S2\n");
   // * Update S2
   // If a col in A is not mapped to S2 yet, then allocate ALNcol to the entire column (A->len_aln), where nres=rescount[c]
   // If a col in A is already mapped to S2 update nres+=rescount[c]
