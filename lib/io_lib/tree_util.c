@@ -7894,7 +7894,6 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
     ktree2aln_bucketsF(K, "alndump.");
   
   outname=kmsa2msa (K,S,NULL,NULL); 
-
   declare_aln_node (-1);//Free all the nodes declared
   vfree (KL);
   return outname;
@@ -7911,6 +7910,10 @@ ALNcol* declare_alncol ()
   return p;
 }
 
+/**
+ * The final MSA is created by merging all the subMSAs.
+ * This function is called, recursively, as many times as subMSAs have.
+ */
 char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 {
   int a, s, c;
@@ -7920,30 +7923,31 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
   ALNcol *end;
   char *output;
   ALNcol *msa;
-    
+
+  // For each sub-MSA A
   if (!start)
-    {
+    {   
+      // Update msa and S2 with the information of the first subMSA A (parent)
       S2=(ALNcol***)vcalloc (S->nseq, sizeof (ALNcol**));
       for (s=0; s<S->nseq; s++)S2[s]=(ALNcol**)vcalloc (S->len[s], sizeof (ALNcol*));
-      A=quick_read_fasta_aln (A,K->msaF);
-      
+      A=quick_read_fasta_aln (A,K->msaF);    
       start=msa2graph(A,S, S2,start, -1);
       out=vtmpnam (NULL);
     }
-  
-  
   for (a=0; a<K->nc; a++)
     {
-      int i =name_is_in_hlist((K->child[a])->name,S->name, S->nseq);
+      // Recursively update msa and S2 with the next subMSA A
+      // so msa and S2 will contain the information of previous subMSAs + this one
+      int i =name_is_in_hlist((K->child[a])->name,S->name, S->nseq);   // Get the position of the master sequence of child[a] in S
       A=quick_read_fasta_aln (A,K->child[a]->msaF);
       start=msa2graph (A,S, S2,start,i);
       kmsa2msa (K->child[a], S, S2,start);
     }
   free_aln (A);
   
-  if (!out) return out;
+  if (!out) return out;   // This ensures the lines below will only be executed once.
   output=get_string_variable ("output");
-
+  
   msa=start;
   if (!output || strm (output, "fasta_aln"))
     {
@@ -7962,7 +7966,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 	  fprintf (fp, ">%s\n", S->name[s]);
 	  
 	  r=0;
-	  while (msa->next)
+	  while (msa->next)  // while there is next column ALNcol 
 	    {
 	      if (msa->aa==0)
 		{
@@ -8023,7 +8027,19 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        ALNcol*msa=start;
        int homoplasy=0;
        int whomoplasy=0;
-       int whomoplasy2=0;
+       int whomoplasy_max=0;
+       double whomoplasy_avg=0;
+       int whomoplasy_sum=0;
+       int whomoplasy_child=0;
+       unsigned long whomoplasy2=0;
+       unsigned long whomoplasy2_max_min=0;
+       unsigned long whomoplasy2_max_max=0;
+       long double whomoplasy2_avg_min=0;
+       long double whomoplasy2_avg_avg=0;
+       unsigned long whomoplasy2_sum=0;
+       unsigned long whomoplasy2_minchild=0;
+       unsigned long whomoplasy2_gapchild=0;
+       unsigned long mergeGap=0;
        FILE *fp2;
        unsigned long ngap=0;
        unsigned long ngap2=0;
@@ -8033,8 +8049,19 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 	 {
 	   homoplasy+=msa->homoplasy;
 	   whomoplasy+=msa->whomoplasy;	   
-	   whomoplasy2+=msa->whomoplasy2;
-	   
+     whomoplasy_max+=msa->whomoplasy_max;
+     whomoplasy_avg+=msa->whomoplasy_avg;	 
+     whomoplasy_sum+=msa->whomoplasy_sum;	 
+     whomoplasy_child+=msa->whomoplasy_child;	 
+     whomoplasy2+=msa->whomoplasy2;
+     whomoplasy2_max_min+=msa->whomoplasy2_max_min;
+     whomoplasy2_max_max+=msa->whomoplasy2_max_max;
+     whomoplasy2_avg_min+=msa->whomoplasy2_avg_min;
+     whomoplasy2_avg_avg+=msa->whomoplasy2_avg_avg;
+     whomoplasy2_sum+=msa->whomoplasy2_sum;
+     whomoplasy2_minchild+=msa->whomoplasy2_minchild;
+     whomoplasy2_gapchild+=msa->whomoplasy2_gapchild;
+     mergeGap+=msa->mergeGap;
 	   ngap+=msa->ngap;
 	   ngap2+=msa->ngap*msa->ngap;
 	   msa=msa->next;
@@ -8044,11 +8071,22 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        fp2=vfopen (get_string_variable ("homoplasy"), "w");
        fprintf ( fp2, "HOMOPLASY: %d\n", homoplasy);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY: %d\n", whomoplasy);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2: %d\n", whomoplasy2);
-       
-       fprintf ( fp2, "LEN: %d\n", len-2);//substract start and end of msa data structure
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_MAX: %d\n", whomoplasy_max);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_AVG: %.2lf\n", whomoplasy_avg);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_SUM: %d\n", whomoplasy_sum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_CHILD: %d\n", whomoplasy_child);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2: %lu\n", whomoplasy2);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MIN: %lu\n", whomoplasy2_max_min);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MAX: %lu\n", whomoplasy2_max_max);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_AVG_MIN: %.2Lf\n", whomoplasy2_avg_min);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_AVG_AVG: %.2Lf\n", whomoplasy2_avg_avg);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM: %lu\n", whomoplasy2_sum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MINCHILD: %lu\n", whomoplasy2_minchild);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD: %lu\n", whomoplasy2_gapchild);
+       fprintf ( fp2, "MERGEGAP: %d\n", mergeGap);
+       fprintf ( fp2, "LEN: %d\n", len);
        fprintf ( fp2, "NGAP: %lu\n", ngap);
-       fprintf ( fp2, "NGAP2: %ul\n",ngap2);
+       fprintf ( fp2, "NGAP2: %lu\n",ngap2);
        vfclose (fp2);
     }
 
@@ -8058,10 +8096,18 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
   
   return out;
 }
-ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
+
+/**
+* The MSA is a linked list of ALNcol having the length of the full MSA
+* S2 is a list of residues with each residue pointing to a position on MSA
+* This way, MSA is only ONE string of Length MSA as opposed to N Strings of length MSA
+* When A is integrated within MSA, for each column, we look for an S2 residue pointing to an ALNcol in msa. 
+* If there is none, then this is an unmatched column and a column of gpas must be inserted in the rest of the sequences
+*/
+ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 {
   //Thread msa in the child section
-  int s, c,ir, subseq, a;
+  int s, c,ir, subseq, a, nnseq;
   int * lu =(int*) vcalloc (A->nseq, sizeof (int));
   int **pos=(int**)declare_int (A->nseq, A->len_aln);
   ALNcol**graph=(ALNcol**)vcalloc ( A->len_aln, sizeof (ALNcol*));
@@ -8069,124 +8115,190 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   ALNcol *start, *end, *parent, *child, *lchild, *lparent;
   int compact=-1;
   int check_homoplasy=1;
-  int *rescount;
-  int *gapcount;
-  int  nnseq;
-  static int tt;
-  static int tt2;
+  int *rescount, *gapcount;
+  static int tt, tt2;
+  int startgap=0; 
+  int endgap=0;
+  int startGAP=0;
+  int endGAP=0;
   
   if (A->len_aln==0)return msa;
-  nnseq=(msa)?(A->nseq+(msa->next)->nseq-1):A->nseq;
+  nnseq=(msa)?(A->nseq+(msa->next)->nseq-1):A->nseq;  // number of sequences of the merged parent msa
 
-  //1-fill up the look up section: pos
-  subseq=-1;
 
+  // * fill up the look up section: pos, with as many rows and columns as A
+  // Each row is a sequence in A, the subMSA
+  // Each column is either -1 (gap) or an integer (col of the residue in S, the sequence dataset)
+  subseq=-1;  // when !msa (!start), seq=-1
   for (s=0; s<A->nseq; s++)
     {
       int r;
-      lu[s]=name_is_in_hlist (A->name[s],S->name, S->nseq);
+      // This matches the index of seq in S - the complete sequence dataset and in A, the subMSA
+      // Each lu[s] corresponds to the position of s in S
+      lu[s]=name_is_in_hlist (A->name[s],S->name, S->nseq);  
+
       for (r=0,c=0; c<A->len_aln; c++)
 	{
 	  if (A->seq_al[s][c]!='-')pos[s][c]=r++;
 	  else pos[s][c]=-1;
 	}
-      //This matches the index of seq in S - the complete sequence dataset and in A, the subMSA
-      if (lu[s]==seq)subseq=s;
+      if (lu[s]==seq)subseq=s;  // Match the master sequence's position in A (subseq) and S (seq)
     }
-  
-  //The MSA is a linked list of ALNcol having the length of the full MSA
-  //S2 is a list of residues with each residue pointing to a position on MSA
-  //This way, MSA is only ONE string of Length MSA as opposed to N Strings of length MSA
-  //When A is integrated within MSA, for each column, we look for an S2 residue pointing to an ALNcol in msa. 
-  //If there is none, then this is an unmatched column and a column of gpas must be inserted in the rest of the sequences
-  
+
+
+  // * Count the number of gaps and residues in the subMSA A (excluding master seq)
   gapcount=(int*)vcalloc ( A->len_aln, sizeof (int));
   rescount=(int*)vcalloc ( A->len_aln, sizeof (int));
   for ( s=0; s<A->nseq; s++)
     if (s!=subseq)
       for (c=0; c<A->len_aln; c++)
 	{
-	  if (A->seq_al[s][c]=='-')gapcount[c]++;
+	  if (A->seq_al[s][c]=='-')gapcount[c]++;   
 	  else rescount[c]++;
 	}
-     
-  if (msa && check_homoplasy)
+
+  // * Update homoplasy
+  if (msa && check_homoplasy)    // If msa, so this part is not computed for the first subMSA (where !start !msa)
     {
       int len, r;
       int *rpos=(int*)vcalloc (A->len_aln, sizeof (int));
-      
-      //Homoplasy 1
-      for (len=0,c=0; c<A->len_aln; c++)
-	{
-	  if (A->seq_al[subseq][c]!='-')rpos[len++]=c;
-	}
-      
-      for (r=0; r<len-1; r++)
-	{
-	  int d1=rpos[r+1]-rpos[r];
-	  int d2=(S2[seq][r+1])->index-(S2[seq][r])->index;
-	  if (d1>1 && d2>1)
-	    {
-	      (S2[seq][r])->homoplasy++;
-	      (S2[seq][r])->whomoplasy+=MIN(d1,d2);
-	    }
-	}
 
-      //whomoplasy2
-      //Counts the minimum number of indels on each side (parent and subMSA), keep the lowest value
-      for (r=0; r<len-1; r++)
+      // * Set rpos : each column refers to the position of a residue in the master sequence of A
+      for (len=0,c=0; c<=A->len_aln-1; c++)   
 	{
-	  int c, g,re;
-	  int sub, main;
-	  //Count gaps and res in child, keep the lowest count -> parsimony
-	  g=re=0;
-	  for (c=rpos[r]+1;c<rpos[r+1]; c++)
-	    {
-	      g+=gapcount[c];
-	      re+=rescount[c];
-	    }
-	  sub=MIN(g,re);
-	  
-	  //Count gaps and res in main, keep lowest count
-	  start=(S2[seq][r])->next;
-	  end  =(S2[seq][r+1]);
-	  g=re=0;
-	  while (start!=end)
-	    {
-	      g+=start->ngap;
-	      re+=start->nres;
-	      start=start->next;
-	    }
-	  main=MIN(g,re);
-	  (S2[seq][r])->whomoplasy2+=MIN(main,sub);
+	  if (A->seq_al[subseq][c]!='-') rpos[len++]=c;
+    else 
+    { 
+      // Set gaps in the extremes 
+      if (c == 0) startgap=1;
+      if (c == A->len_aln-1) endgap=1; 
+    }
 	}
-      vfree (rpos);
+    // External gaps in parent S2
+    if ( (S2[seq][0])->index==0 ) startGAP=1;
+    if ( (S2[seq][0])->next ) endGAP=1;
+
+    // * Homoplasy 1
+    // TODO the extension of gaps in child (smaller) because of gaps in parent should have different weight than the same in parent (larger)
+    int rend, rup;
+    if (startgap==1 || startGAP==1)r=-1; else r=0;
+    if (endgap==1 || endGAP==1)rend=len; else rend=len-1;
+    while(r<rend)
+    {
+      ALNcol *last;
+      int d1, d2;
+      if (r==-1)  // gaps at the beginning
+      {
+        r=0;rup=0;
+        d1=rpos[r];
+        d2=(S2[seq][r])->index;
+      }
+      else if (r==len-1)  // gaps at the end
+      {
+        last=(S2[seq][r]); while(last->next->aa!=-1)last=last->next; // get last column
+        d1=A->len_aln-rpos[r]-1;
+        d2=last->index-(S2[seq][r])->index;     
+        rup=1;
+      }
+      else  // internal gaps
+      {
+        d1=rpos[r+1]-rpos[r]-1;
+        d2=(S2[seq][r+1])->index-(S2[seq][r])->index-1;
+        rup=1;
+      }
+      if (d1>0 || d2>0)  // update homoplasy
+      {
+        (S2[seq][r])->homoplasy++;    
+        (S2[seq][r])->whomoplasy+=MIN(d1, d2);  
+        (S2[seq][r])->whomoplasy_max+=MAX(d1, d2);  
+        (S2[seq][r])->whomoplasy_avg+=((d1)*1.0, (d2)*1.0)/2;  
+        (S2[seq][r])->whomoplasy_sum+=(d1 + d2);
+        (S2[seq][r])->whomoplasy_child+=d1;
+        (S2[seq][r])->mergeGap+=d1*nnseq;
+        (S2[seq][r])->mergeGap+=d2*A->nseq;
+      }
+      if(rup==1)r++;
     }
 
-  
-  
-	
+    // * whomoplasy2
+    if (startgap==1 || endGAP==1)r=-1; else r=0;  // reset r
+    while(r<rend)
+    {
+      ALNcol *start, *end, *last;
+      int c, cstart, cend;
+      int g_child,re_child, g_main, re_main;
+      int sub, main;
+      int sub_max, main_max;
+      float sub_avg, main_avg;
+      g_child=re_child=g_main=re_main=0;
 
-  for (c=0; c<A->len_aln; c++)
+      // Count gaps and res in child, keep the lowest count -> parsimony
+      if (r==-1) {cstart=0; cend=rpos[0];}
+      else if (r==len-1) {cstart=rpos[r]+1; cend=A->len_aln;}
+      else {cstart=rpos[r]+1; cend=rpos[r+1];}
+      for (c=cstart; c<cend; c++)
+      {
+        g_child+=gapcount[c];
+        re_child+=rescount[c];
+      }
+    
+      // Parent
+      if (r==-1) {start=msa->next; end=S2[seq][0]; r=0; rup=0;}
+      else if (r==len-1) {start=S2[seq][r]->next; end=start; while(end->next->aa!=-1)end=end->next; rup=1;}
+      else {start=(S2[seq][r])->next; end=(S2[seq][r+1]); rup=1;}
+      while (start!=end)
+      {
+        g_main+=start->ngap;
+        re_main+=start->nres;
+        start=start->next;
+      }
+      
+      // Update homoplasy
+      sub=MIN(g_child,re_child); main=MIN(g_main,re_main);
+      sub_max=MAX(g_child,re_child); main_max=MAX(g_main,re_main);
+      sub_avg=(g_child*1.0 + re_child*1.0)/2; main_avg=(g_main*1.0 + re_main*1.0)/2;     
+      (S2[seq][r])->whomoplasy2+=MIN(main,sub);
+      (S2[seq][r])->whomoplasy2_max_min+=MAX(main,sub);
+      (S2[seq][r])->whomoplasy2_max_max+=MAX(main_max,sub_max);
+      (S2[seq][r])->whomoplasy2_avg_min+=(main+sub)/2;
+      (S2[seq][r])->whomoplasy2_avg_avg+=(main_avg+sub_avg)/2;
+      (S2[seq][r])->whomoplasy2_sum+=(sub+main);
+      (S2[seq][r])->whomoplasy2_minchild+=sub;
+      (S2[seq][r])->whomoplasy2_gapchild+=g_child;
+      
+      if(rup==1)r++;
+    }
+
+      vfree (rpos);
+  }
+
+
+
+  // * Update S2
+  // If a col in A is not mapped to S2 yet, then allocate ALNcol to the entire column (A->len_aln), where nres=rescount[c]
+  // If a col in A is already mapped to S2 update nres+=rescount[c]
+  // In this way, S2 contains the rescount information of the columns of all the subMSA merged together up to here
+  // S2 has the same dimension [s][c] as S, but each value points to a column in the big merged MSA
+    for (c=0; c<A->len_aln; c++)
     {
       p=NULL;
       //scan A->nseq to check if one of the residue is already mapped onto MSA
       //If such a residue is mapped then the whole column is mapped
       for (s=0; s<A->nseq; s++)
 	{
-	  ir=pos[s][c];
+	  ir=pos[s][c];     
 
 	  if (ir!=-1 && S2[lu[s]][ir] )
 	    {
 	      p=S2[lu[s]][ir];graph[c]=p;
-	      p->nres+=rescount[c];
-	      
+	      p->nres+=rescount[c];     
+
 	      break;
 	    }
 	}
-      
       //If no residue was found to be mapped for msa
       //all residues of this column will then be mapped onto this MSA position
+      //In this way new columns are added to msa
       if (!p)
 	{
 	  p=graph[c]=(ALNcol*)declare_alncol();
@@ -8199,8 +8311,9 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	  //p is an empty column it will trigger a insertion in msa in the next step.
 	}
     }
- 
-  if (!msa)//graph gets turned into msa
+
+  // * graph gets turned into msa
+  if (!msa)
     {
       msa=start=declare_alncol();
       end=declare_alncol();
@@ -8210,21 +8323,19 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 
       for (c=0; c<A->len_aln; c++)
 	{
-	  graph[c]->next=(c<A->len_aln-1)?graph[c+1]:end;
+	  graph[c]->next=(c<A->len_aln-1)?graph[c+1]:end;  // Connect each column (gapped or not) to the next
 	}
-     
-    }
-  //Insert graph into msa by expanding seq
+     }
+  // * Insert graph into msa by expanding seq
   //Trick: graph[A->len_aln] contains all the nodes
   //the ones from seq are already in. They can be recognised with aa==1
   //the new ones are the gaps and they need to be connected to the aa==1
-  
   else 
     {
       ALNcol*last=msa;
       int len=0;
-      
-      for (c=0; c<S->len[seq]; c++)(S2[seq][c])->aa=1;
+
+      for (c=0; c<S->len[seq]; c++)(S2[seq][c])->aa=1; 
       for (c=0; c<A->len_aln; c++)
 	{
 	  if (graph[c]->aa)last=graph[c];
@@ -8240,24 +8351,23 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
     }
   
   //This assigns an index to every column in the linked list MSA
-  
   if (check_homoplasy)
     {
       int i=0;
       ALNcol*st=msa;
       while (st)
 	{
-	  if (st->aa>=0)
+    //for column in msa
+	  if (st->aa>=0)    // so !=-1, that is to say, not start nor end of graph
 	    {
-	      st->nseq=nnseq;
-	      st->index=i++;
+	      st->nseq=nnseq;  //update number of sequences in the merged msa
+	      st->index=i++;   //update index of column
 	      st->ngap=st->nseq - st->nres;
 	    }
 	  st=st->next;
 	}
     }
-  
-  
+    
   vfree (graph);
   vfree (lu);
   free_int (pos,-1);
@@ -9025,7 +9135,7 @@ ALN_node ** msa2graph (Sequence *S, Alignment *A, ALN_node**lu)
   int *cc=(int*)vcalloc (A->nseq, sizeof (int));
   ALN_node **aln;
   int s, c;
-  
+
   if (!lu)
     {
       lu=(ALN_node**)vcalloc (A->nseq, sizeof (ALN_node*));
