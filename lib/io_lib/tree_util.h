@@ -10,20 +10,36 @@ typedef struct ALNcol
   int nseq;
 
   int homoplasy;
+  int homoplasy_child;
+  int homoplasy_parent;
+  int homoplasy_both;
   int whomoplasy;
   int whomoplasy_max;
   double whomoplasy_avg;
   int whomoplasy_sum;
   int whomoplasy_child;
+  int whomoplasy_parent;
   int whomoplasy2;
   int whomoplasy2_max_min;
   int whomoplasy2_max_max;
+  int whomoplasy2_min_max;
   double whomoplasy2_avg_min;
+  double whomoplasy2_avg_max;
   double whomoplasy2_avg_avg;
   int whomoplasy2_sum;
+  int whomoplasy2_sum_max;
+  double whomoplasy2_sum_avg;
   int whomoplasy2_minchild;  
+  int whomoplasy2_maxchild;
   int whomoplasy2_gapchild;
+  int whomoplasy2_reschild;
+  int whomoplasy2_minparent;
+  int whomoplasy2_maxparent;
+  int whomoplasy2_gapparent;
+  int whomoplasy2_resparent;
   int mergeGap;
+  int mergeGap_child;
+  int mergeGap_parent;
 
   //int id //put this back when debugging pointers
 struct ALNcol *next;
