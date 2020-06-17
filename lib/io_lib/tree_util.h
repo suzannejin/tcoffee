@@ -9,6 +9,8 @@ typedef struct ALNcol
   int nres;
   int nseq;
 
+  // TODO add whomoplasy_both, whomoplasy2_gapsum, whomoplasy2_gapboth, whomoplasy2_gapchild2, whomoplasy2_gapparent2, mergeGap_both
+
   int homoplasy;
   int homoplasy_child;
   int homoplasy_parent;
@@ -19,6 +21,7 @@ typedef struct ALNcol
   int whomoplasy_sum;
   int whomoplasy_child;
   int whomoplasy_parent;
+  int whomoplasy_both;
   int whomoplasy2;
   int whomoplasy2_max_min;
   int whomoplasy2_max_max;
@@ -37,9 +40,14 @@ typedef struct ALNcol
   int whomoplasy2_maxparent;
   int whomoplasy2_gapparent;
   int whomoplasy2_resparent;
+  int whomoplasy2_gapsum;
+  int whomoplasy2_gapboth;
+  int whomoplasy2_gapchild2;
+  int whomoplasy2_gapparent2;
   int mergeGap;
   int mergeGap_child;
   int mergeGap_parent;
+  int mergeGap_both;
 
   //int id //put this back when debugging pointers
 struct ALNcol *next;

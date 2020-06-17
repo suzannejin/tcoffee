@@ -8035,6 +8035,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        unsigned long whomoplasy_sum=0;
        unsigned long whomoplasy_child=0;
        unsigned long whomoplasy_parent=0;
+       unsigned long whomoplasy_both=0;
        unsigned long whomoplasy2=0;
        unsigned long whomoplasy2_max_min=0;
        unsigned long whomoplasy2_max_max=0;
@@ -8053,15 +8054,20 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        unsigned long whomoplasy2_maxparent=0;
        unsigned long whomoplasy2_gapparent=0;
        unsigned long whomoplasy2_resparent=0;
+       unsigned long whomoplasy2_gapsum=0;
+       unsigned long whomoplasy2_gapboth=0;
+       unsigned long whomoplasy2_gapchild2=0;
+       unsigned long whomoplasy2_gapparent2=0;
        unsigned long mergeGap=0;
        unsigned long mergeGap_child=0;
        unsigned long mergeGap_parent=0;
+       unsigned long mergeGap_both=0;
        FILE *fp2;
        unsigned long ngap=0;
        unsigned long ngap2=0;
        int len=0;
        
-       while (msa->next)
+       while (msa->next)  
 	 {
 	   homoplasy+=msa->homoplasy;
      homoplasy_child+=msa->homoplasy_child;
@@ -8073,6 +8079,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
      whomoplasy_sum+=msa->whomoplasy_sum;	 
      whomoplasy_child+=msa->whomoplasy_child;	 
      whomoplasy_parent+=msa->whomoplasy_parent;
+     whomoplasy_both+=msa->whomoplasy_both;
      whomoplasy2+=msa->whomoplasy2;
      whomoplasy2_max_min+=msa->whomoplasy2_max_min;
      whomoplasy2_max_max+=msa->whomoplasy2_max_max;
@@ -8091,15 +8098,20 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
      whomoplasy2_maxparent+=msa->whomoplasy2_maxparent;
      whomoplasy2_gapparent+=msa->whomoplasy2_gapparent;
      whomoplasy2_resparent+=msa->whomoplasy2_resparent;
+     whomoplasy2_gapsum+=msa->whomoplasy2_gapsum;
+     whomoplasy2_gapboth+=msa->whomoplasy2_gapboth;
+     whomoplasy2_gapchild2+=msa->whomoplasy2_gapchild2;
+     whomoplasy2_gapparent2+=msa->whomoplasy2_gapparent2;
      mergeGap+=msa->mergeGap;
      mergeGap_child+=msa->mergeGap_child;
      mergeGap_parent+=msa->mergeGap_parent;
+     mergeGap_both+=msa->mergeGap_both;
 	   ngap+=msa->ngap;
 	   ngap2+=msa->ngap*msa->ngap;
 	   msa=msa->next;
 	   if (msa->aa>=0)len++;
 	 }
-       
+   
        fp2=vfopen (get_string_variable ("homoplasy"), "w");
        fprintf ( fp2, "HOMOPLASY: %d\n", homoplasy);
        fprintf ( fp2, "HOMOPLASY_CHILD: %d\n", homoplasy_child);
@@ -8111,6 +8123,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        fprintf ( fp2, "WEIGHTED_HOMOPLASY_SUM: %lu\n", whomoplasy_sum);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY_CHILD: %lu\n", whomoplasy_child);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY_PARENT: %lu\n", whomoplasy_parent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_BOTH: %lu\n", whomoplasy_both);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2: %lu\n", whomoplasy2);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MIN: %lu\n", whomoplasy2_max_min);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MAX: %lu\n", whomoplasy2_max_max);
@@ -8129,9 +8142,14 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAXPARENT: %lu\n", whomoplasy2_maxparent);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT: %lu\n", whomoplasy2_gapparent);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_RESPARENT: %lu\n", whomoplasy2_resparent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPSUM: %lu\n", whomoplasy2_gapsum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPBOTH: %lu\n", whomoplasy2_gapboth);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD2: %lu\n", whomoplasy2_gapchild2);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT2: %lu\n", whomoplasy2_gapparent2);
        fprintf ( fp2, "MERGEGAP: %lu\n", mergeGap);
        fprintf ( fp2, "MERGEGAP_CHILD: %lu\n", mergeGap_child);
        fprintf ( fp2, "MERGEGAP_PARENT: %lu\n", mergeGap_parent);
+       fprintf ( fp2, "MERGEGAP_BOTH: %lu\n", mergeGap_both);
        fprintf ( fp2, "MSAGAP: %lu\n", ngap - mergeGap);
        fprintf ( fp2, "LEN: %d\n", len);
        fprintf ( fp2, "NGAP: %lu\n", ngap);
@@ -8273,7 +8291,13 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       }
       if (d1>0) (S2[seq][r])->homoplasy_child++;  
       if (d2>0) (S2[seq][r])->homoplasy_parent++;  
-      if (d1>0 && d2>0) (S2[seq][r])->homoplasy_both++;  
+      if (d1>0 && d2>0) 
+      {
+        (S2[seq][r])->homoplasy_both++;  
+        (S2[seq][r])->whomoplasy_both+=MIN(d1, d2);  
+        (S2[seq][r])->mergeGap_both+=d1*msa->next->nseq;
+        (S2[seq][r])->mergeGap_both+=d2*A->nseq;
+      }
       if(rup==1)r++;
     }
 
@@ -8294,7 +8318,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       // Count gaps and res in child, keep the lowest count -> parsimony
       if ((r==-1) && (startgap==1)) {cstart=0; cend=rpos[0];}
       else if ((r==len-1) && (endgap==1)) {cstart=rpos[r]+1; cend=A->len_aln;}
-      else if ((r!=-1) && (r!=len-1)) {cstart=rpos[r]+1; cend=rpos[r+1];}
+      else if ((r>-1) && (r<len-1)) {cstart=rpos[r]+1; cend=rpos[r+1];}
       for (c=cstart; c<cend; c++)
       {
         g_child+=gapcount[c];
@@ -8303,7 +8327,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       // Parent
       if ((r==-1) && (startGAP==1)) {start=msa->next; end=S2[seq][0];}
       else if ((r==len-1) && (endGAP==1)) {start=S2[seq][r]->next; end=start; while(end->aa!=-1)end=end->next;}
-      else if ((r!=-1) && (r!=len-1)) {start=(S2[seq][r])->next; end=(S2[seq][r+1]);}
+      else if ((r>-1) && (r<len-1)) {start=(S2[seq][r])->next; end=(S2[seq][r+1]);}
       while (start!=end)
       {
         g_main+=start->ngap;
@@ -8333,7 +8357,13 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       (S2[seq][r])->whomoplasy2_maxparent+=main_max;
       (S2[seq][r])->whomoplasy2_gapparent+=g_main;
       (S2[seq][r])->whomoplasy2_resparent+=re_main;
-      
+      (S2[seq][r])->whomoplasy2_gapsum+=(g_main+g_child);
+      if (g_main>0 && g_child>0)
+      {
+        (S2[seq][r])->whomoplasy2_gapboth+=(g_main+g_child);
+        (S2[seq][r])->whomoplasy2_gapchild2+=g_child;
+        (S2[seq][r])->whomoplasy2_gapparent2+=g_main;
+      }
       if(rup==1)r++;
     }
 
