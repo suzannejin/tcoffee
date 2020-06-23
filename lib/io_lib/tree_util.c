@@ -8024,48 +8024,51 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 
   if (get_string_variable ("homoplasy"))
     {
+      // TODO check overflow
+      // TODO Solve homoplasy parent
        ALNcol*msa=start;
-       int homoplasy=0;
-       int homoplasy_child=0;
-       int homoplasy_parent=0;
-       int homoplasy_both=0;
-       unsigned long whomoplasy=0;
-       unsigned long whomoplasy_max=0;
+       unsigned long homoplasy=0;
+       unsigned long homoplasy_child=0;
+       unsigned long homoplasy_parent=0;
+       unsigned long homoplasy_both=0;
+       unsigned long long whomoplasy=0;
+       unsigned long long whomoplasy_max=0;
        long double whomoplasy_avg=0;
-       unsigned long whomoplasy_sum=0;
-       unsigned long whomoplasy_child=0;
-       unsigned long whomoplasy_parent=0;
-       unsigned long whomoplasy_both=0;
-       unsigned long whomoplasy2=0;
-       unsigned long whomoplasy2_max_min=0;
-       unsigned long whomoplasy2_max_max=0;
-       unsigned long whomoplasy2_min_max=0;
+       unsigned long long whomoplasy_sum=0;
+       unsigned long long whomoplasy_child=0;
+       unsigned long long whomoplasy_parent=0;
+       unsigned long long whomoplasy_both=0;
+       unsigned long long whomoplasy2=0;
+       unsigned long long whomoplasy2_max_min=0;
+       unsigned long long whomoplasy2_max_max=0;
+       unsigned long long whomoplasy2_min_max=0;
        long double whomoplasy2_avg_min=0;
        long double whomoplasy2_avg_max=0;
        long double whomoplasy2_avg_avg=0;
-       unsigned long whomoplasy2_sum=0;
-       unsigned long whomoplasy2_sum_max=0;
+       unsigned long long whomoplasy2_sum=0;
+       unsigned long long whomoplasy2_sum_max=0;
        long double whomoplasy2_sum_avg=0;
-       unsigned long whomoplasy2_minchild=0;
-       unsigned long whomoplasy2_maxchild=0;
-       unsigned long whomoplasy2_gapchild=0;
-       unsigned long whomoplasy2_reschild=0;
-       unsigned long whomoplasy2_minparent=0;
-       unsigned long whomoplasy2_maxparent=0;
-       unsigned long whomoplasy2_gapparent=0;
-       unsigned long whomoplasy2_resparent=0;
-       unsigned long whomoplasy2_gapsum=0;
-       unsigned long whomoplasy2_gapboth=0;
-       unsigned long whomoplasy2_gapchild2=0;
-       unsigned long whomoplasy2_gapparent2=0;
-       unsigned long mergeGap=0;
-       unsigned long mergeGap_child=0;
-       unsigned long mergeGap_parent=0;
-       unsigned long mergeGap_both=0;
+       unsigned long long whomoplasy2_minchild=0;
+       unsigned long long whomoplasy2_maxchild=0;
+       unsigned long long whomoplasy2_gapchild=0;
+       unsigned long long whomoplasy2_reschild=0;
+       unsigned long long whomoplasy2_minparent=0;
+       unsigned long long whomoplasy2_maxparent=0;
+       unsigned long long whomoplasy2_gapparent=0;
+       unsigned long long whomoplasy2_resparent=0;
+       unsigned long long whomoplasy2_gapsum=0;
+       unsigned long long whomoplasy2_gapboth=0;
+       unsigned long long whomoplasy2_gapchild2=0;
+       unsigned long long whomoplasy2_gapparent2=0;
+       unsigned long long mergeGap=0;
+       unsigned long long mergeGap_child=0;
+       unsigned long long mergeGap_parent=0;
+       unsigned long long mergeGap_both=0;
+       unsigned long long msaGap=0;
        FILE *fp2;
-       unsigned long ngap=0;
-       unsigned long ngap2=0;
-       int len=0;
+       unsigned long long ngap=0;
+       unsigned long long ngap2=0;
+       unsigned long len=0;
        
        while (msa->next)  
 	 {
@@ -8106,54 +8109,60 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
      mergeGap_child+=msa->mergeGap_child;
      mergeGap_parent+=msa->mergeGap_parent;
      mergeGap_both+=msa->mergeGap_both;
+     msaGap+=msa->msaGap;
 	   ngap+=msa->ngap;
 	   ngap2+=msa->ngap*msa->ngap;
 	   msa=msa->next;
 	   if (msa->aa>=0)len++;
 	 }
+
    
        fp2=vfopen (get_string_variable ("homoplasy"), "w");
-       fprintf ( fp2, "HOMOPLASY: %d\n", homoplasy);
-       fprintf ( fp2, "HOMOPLASY_CHILD: %d\n", homoplasy_child);
-       fprintf ( fp2, "HOMOPLASY_PARENT: %d\n", homoplasy_parent);
-       fprintf ( fp2, "HOMOPLASY_BOTH: %d\n", homoplasy_both);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY: %lu\n", whomoplasy);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY_MAX: %lu\n", whomoplasy_max);
+       fprintf ( fp2, "HOMOPLASY: %lu\n", homoplasy);
+       fprintf ( fp2, "HOMOPLASY_CHILD: %lu\n", homoplasy_child);
+       fprintf ( fp2, "HOMOPLASY_PARENT: %lu\n", homoplasy_parent);
+       fprintf ( fp2, "HOMOPLASY_BOTH: %lu\n", homoplasy_both);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY: %llu\n", whomoplasy);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_MAX: %llu\n", whomoplasy_max);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY_AVG: %.2Lf\n", whomoplasy_avg);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY_SUM: %lu\n", whomoplasy_sum);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY_CHILD: %lu\n", whomoplasy_child);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY_PARENT: %lu\n", whomoplasy_parent);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY_BOTH: %lu\n", whomoplasy_both);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2: %lu\n", whomoplasy2);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MIN: %lu\n", whomoplasy2_max_min);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MAX: %lu\n", whomoplasy2_max_max);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MIN_MAX: %lu\n", whomoplasy2_min_max);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_SUM: %llu\n", whomoplasy_sum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_CHILD: %llu\n", whomoplasy_child);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_PARENT: %llu\n", whomoplasy_parent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY_BOTH: %llu\n", whomoplasy_both);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2: %llu\n", whomoplasy2);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MIN: %llu\n", whomoplasy2_max_min);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAX_MAX: %llu\n", whomoplasy2_max_max);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MIN_MAX: %llu\n", whomoplasy2_min_max);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_AVG_MIN: %.2Lf\n", whomoplasy2_avg_min);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_AVG_MAX: %.2Lf\n", whomoplasy2_avg_max);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_AVG_AVG: %.2Lf\n", whomoplasy2_avg_avg);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM: %lu\n", whomoplasy2_sum);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM_MAX: %lu\n", whomoplasy2_sum_max);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM: %llu\n", whomoplasy2_sum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM_MAX: %llu\n", whomoplasy2_sum_max);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_SUM_AVG: %.2Lf\n", whomoplasy2_sum_avg);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MINCHILD: %lu\n", whomoplasy2_minchild);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAXCHILD: %lu\n", whomoplasy2_maxchild);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD: %lu\n", whomoplasy2_gapchild);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_RESCHILD: %lu\n", whomoplasy2_reschild);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MINPARENT: %lu\n", whomoplasy2_minparent);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAXPARENT: %lu\n", whomoplasy2_maxparent);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT: %lu\n", whomoplasy2_gapparent);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_RESPARENT: %lu\n", whomoplasy2_resparent);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPSUM: %lu\n", whomoplasy2_gapsum);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPBOTH: %lu\n", whomoplasy2_gapboth);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD2: %lu\n", whomoplasy2_gapchild2);
-       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT2: %lu\n", whomoplasy2_gapparent2);
-       fprintf ( fp2, "MERGEGAP: %lu\n", mergeGap);
-       fprintf ( fp2, "MERGEGAP_CHILD: %lu\n", mergeGap_child);
-       fprintf ( fp2, "MERGEGAP_PARENT: %lu\n", mergeGap_parent);
-       fprintf ( fp2, "MERGEGAP_BOTH: %lu\n", mergeGap_both);
-       fprintf ( fp2, "MSAGAP: %lu\n", ngap - mergeGap);
-       fprintf ( fp2, "LEN: %d\n", len);
-       fprintf ( fp2, "NGAP: %lu\n", ngap);
-       fprintf ( fp2, "NGAP2: %lu\n",ngap2);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MINCHILD: %llu\n", whomoplasy2_minchild);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAXCHILD: %llu\n", whomoplasy2_maxchild);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD: %llu\n", whomoplasy2_gapchild);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_RESCHILD: %llu\n", whomoplasy2_reschild);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MINPARENT: %llu\n", whomoplasy2_minparent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_MAXPARENT: %llu\n", whomoplasy2_maxparent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT: %llu\n", whomoplasy2_gapparent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_RESPARENT: %llu\n", whomoplasy2_resparent);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPSUM: %llu\n", whomoplasy2_gapsum);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPBOTH: %llu\n", whomoplasy2_gapboth);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD2: %llu\n", whomoplasy2_gapchild2);
+       fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT2: %llu\n", whomoplasy2_gapparent2);
+       if (ngap >= msaGap) fprintf (fp2, "MERGEGAP: %llu\n", ngap - msaGap);
+       else fprintf (fp2, "MERGEGAP: -%llu\n", msaGap - ngap);
+       fprintf ( fp2, "MERGEGAP2: %llu\n", mergeGap);  // TODO fix the mergeGap count. It should be smaller than the total ngap
+       fprintf ( fp2, "MERGEGAP_CHILD: %llu\n", mergeGap_child);
+       fprintf ( fp2, "MERGEGAP_PARENT: %llu\n", mergeGap_parent);
+       fprintf ( fp2, "MERGEGAP_BOTH: %llu\n", mergeGap_both);
+       fprintf ( fp2, "MSAGAP: %llu\n", msaGap);
+       if (ngap >= mergeGap) fprintf (fp2, "MSAGAP2: %llu\n", ngap - mergeGap);
+       else fprintf (fp2, "MSAGAP2: -%llu\n", mergeGap - ngap);
+       fprintf ( fp2, "LEN: %lu\n", len);
+       fprintf ( fp2, "NGAP: %llu\n", ngap);
+       fprintf ( fp2, "NGAP2: %llu\n",ngap2);
        vfclose (fp2);
     }
 
@@ -8164,7 +8173,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
   return out;
 }
 
-/**
+/** 
 * The MSA is a linked list of ALNcol having the length of the full MSA
 * S2 is a list of residues with each residue pointing to a position on MSA
 * This way, MSA is only ONE string of Length MSA as opposed to N Strings of length MSA
@@ -8182,7 +8191,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   ALNcol *start, *end, *parent, *child, *lchild, *lparent;
   int compact=-1;
   int check_homoplasy=1;
-  int *rescount, *gapcount;
+  int *rescount, *gapcount, *msagap;
   static int tt, tt2;
   int startgap=0; 
   int endgap=0;
@@ -8211,20 +8220,22 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       if (lu[s]==seq)subseq=s;  // Match the master sequence's position in A (subseq) and S (seq)
     }
 
-
   // * Count the number of gaps and residues in the subMSA A (excluding master seq)
   gapcount=(int*)vcalloc ( A->len_aln, sizeof (int));
   rescount=(int*)vcalloc ( A->len_aln, sizeof (int));
+  // msagap=(int*)vcalloc (A->len_aln, sizeof(int));
   for ( s=0; s<A->nseq; s++)
-    if (s!=subseq)
+  {
+    for (c=0; c<A->len_aln; c++)
     {
-      for (c=0; c<A->len_aln; c++)
+      if (s!=subseq)
       {
         if (A->seq_al[s][c]=='-')gapcount[c]++;   
         else rescount[c]++;
       }
+      // if (A->seq_al[s][c]=='-')msagap[c]++;
     }
-
+  }
 
   // * Update homoplasy
   if (msa && check_homoplasy)    // If msa, so this part is not computed for the first subMSA (where !start !msa)
@@ -8232,7 +8243,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       int len, r;
       int *rpos=(int*)vcalloc (A->len_aln, sizeof (int));
 
-      // * Set rpos : each column refers to the position of a residue in the master sequence of A
+      // * Set rpos : position of the residues of the master sequence in A
       for (len=0,c=0; c<=A->len_aln-1; c++)   
 	{
 	  if (A->seq_al[subseq][c]!='-') rpos[len++]=c;
@@ -8245,7 +8256,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	}
     // External gaps in parent S2
     if ( (S2[seq][0])->index>0 ) startGAP=1;
-    if ( (S2[seq][S->len[seq]-1])->next->aa!=-1 ) endGAP=1;
+    if ( (S2[seq][S->len[seq]-1])->next->aa>=0 ) endGAP=1;
 
     // * Homoplasy 1
     // TODO the extension of gaps in child (smaller) because of gaps in parent should have different weight than the same in parent (larger)
@@ -8388,6 +8399,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	    {
 	      p=S2[lu[s]][ir];graph[c]=p;
 	      p->nres+=rescount[c];     
+        p->msaGap+=gapcount[c];
 
 	      break;
 	    }
@@ -8399,6 +8411,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	{
 	  p=graph[c]=(ALNcol*)declare_alncol();
 	  p->nres=rescount[c];
+    p->msaGap+=gapcount[c];
 	}
       for (s=0; s<A->nseq; s++)
 	{	  
