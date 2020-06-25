@@ -42,10 +42,10 @@ typedef struct ALNcol
   unsigned int whomoplasy2_gapboth;
   unsigned int whomoplasy2_gapchild2;
   unsigned int whomoplasy2_gapparent2;
-  unsigned int mergeGap;
-  unsigned int mergeGap_child;
-  unsigned int mergeGap_parent;
-  unsigned int mergeGap_both;
+  unsigned int mergeGap2;
+  unsigned int mergeGap2_child;
+  unsigned int mergeGap2_parent;
+  unsigned int mergeGap2_both;
   unsigned int msaGap;
 
   //int id //put this back when debugging pointers

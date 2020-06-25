@@ -7892,7 +7892,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
     }
   if (getenv ("DUMP_ALN_BUCKETS") ||getenv ("DUMP_ALN_BUCKETS_ONLY"))
     ktree2aln_bucketsF(K, "alndump.");
-  
+
   outname=kmsa2msa (K,S,NULL,NULL); 
   declare_aln_node (-1);//Free all the nodes declared
   vfree (KL);
@@ -7943,6 +7943,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
       start=msa2graph (A,S, S2,start,i);
       kmsa2msa (K->child[a], S, S2,start);
     }
+
   free_aln (A);
   
   if (!out) return out;   // This ensures the lines below will only be executed once.
@@ -8025,7 +8026,6 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
   if (get_string_variable ("homoplasy"))
     {
       // TODO check overflow
-      // TODO Solve homoplasy parent
        ALNcol*msa=start;
        unsigned long homoplasy=0;
        unsigned long homoplasy_child=0;
@@ -8060,10 +8060,10 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        unsigned long long whomoplasy2_gapboth=0;
        unsigned long long whomoplasy2_gapchild2=0;
        unsigned long long whomoplasy2_gapparent2=0;
-       unsigned long long mergeGap=0;
-       unsigned long long mergeGap_child=0;
-       unsigned long long mergeGap_parent=0;
-       unsigned long long mergeGap_both=0;
+       unsigned long long mergeGap2=0;
+       unsigned long long mergeGap2_child=0;
+       unsigned long long mergeGap2_parent=0;
+       unsigned long long mergeGap2_both=0;
        unsigned long long msaGap=0;
        FILE *fp2;
        unsigned long long ngap=0;
@@ -8105,10 +8105,10 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
      whomoplasy2_gapboth+=msa->whomoplasy2_gapboth;
      whomoplasy2_gapchild2+=msa->whomoplasy2_gapchild2;
      whomoplasy2_gapparent2+=msa->whomoplasy2_gapparent2;
-     mergeGap+=msa->mergeGap;
-     mergeGap_child+=msa->mergeGap_child;
-     mergeGap_parent+=msa->mergeGap_parent;
-     mergeGap_both+=msa->mergeGap_both;
+     mergeGap2+=msa->mergeGap2;
+     mergeGap2_child+=msa->mergeGap2_child;
+     mergeGap2_parent+=msa->mergeGap2_parent;
+     mergeGap2_both+=msa->mergeGap2_both;
      msaGap+=msa->msaGap;
 	   ngap+=msa->ngap;
 	   ngap2+=msa->ngap*msa->ngap;
@@ -8151,15 +8151,14 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPBOTH: %llu\n", whomoplasy2_gapboth);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPCHILD2: %llu\n", whomoplasy2_gapchild2);
        fprintf ( fp2, "WEIGHTED_HOMOPLASY2_GAPPARENT2: %llu\n", whomoplasy2_gapparent2);
-       if (ngap >= msaGap) fprintf (fp2, "MERGEGAP: %llu\n", ngap - msaGap);
-       else fprintf (fp2, "MERGEGAP: -%llu\n", msaGap - ngap);
-       fprintf ( fp2, "MERGEGAP2: %llu\n", mergeGap);  // TODO fix the mergeGap count. It should be smaller than the total ngap
-       fprintf ( fp2, "MERGEGAP_CHILD: %llu\n", mergeGap_child);
-       fprintf ( fp2, "MERGEGAP_PARENT: %llu\n", mergeGap_parent);
-       fprintf ( fp2, "MERGEGAP_BOTH: %llu\n", mergeGap_both);
+       fprintf (fp2, "MERGEGAP: %llu\n", ngap - msaGap);
+       fprintf ( fp2, "MERGEGAP2: %llu\n", mergeGap2); 
+       fprintf ( fp2, "MERGEGAP2_CHILD: %llu\n", mergeGap2_child);
+       fprintf ( fp2, "MERGEGAP2_PARENT: %llu\n", mergeGap2_parent);
+       fprintf ( fp2, "MERGEGAP2_BOTH: %llu\n", mergeGap2_both);
        fprintf ( fp2, "MSAGAP: %llu\n", msaGap);
-       if (ngap >= mergeGap) fprintf (fp2, "MSAGAP2: %llu\n", ngap - mergeGap);
-       else fprintf (fp2, "MSAGAP2: -%llu\n", mergeGap - ngap);
+       if (ngap >= mergeGap2) fprintf (fp2, "MSAGAP2: %llu\n", ngap - mergeGap2);
+       else fprintf (fp2, "MSAGAP2: -%llu\n", mergeGap2 - ngap);
        fprintf ( fp2, "LEN: %lu\n", len);
        fprintf ( fp2, "NGAP: %llu\n", ngap);
        fprintf ( fp2, "NGAP2: %llu\n",ngap2);
@@ -8223,19 +8222,130 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   // * Count the number of gaps and residues in the subMSA A (excluding master seq)
   gapcount=(int*)vcalloc ( A->len_aln, sizeof (int));
   rescount=(int*)vcalloc ( A->len_aln, sizeof (int));
-  // msagap=(int*)vcalloc (A->len_aln, sizeof(int));
+  msagap=(int*)vcalloc ( A->len_aln, sizeof (int));
   for ( s=0; s<A->nseq; s++)
   {
     for (c=0; c<A->len_aln; c++)
     {
-      if (s!=subseq)
+      // If not master sequence (repeated in several sub-MSA, except first parent where seq==-1)
+      // In this way, we avoid repeating counts
+      if (s!=subseq)  
       {
         if (A->seq_al[s][c]=='-')gapcount[c]++;   
         else rescount[c]++;
       }
-      // if (A->seq_al[s][c]=='-')msagap[c]++;
+      if (A->seq_al[s][c]=='-') msagap[c]++; 
     }
   }
+
+
+  // // Print merged MSA
+  // if (seq >= 0 && msa)
+  // {
+  //   int ns, nc, msaseq, s2;
+  //   ALNcol *st;
+
+  //   ns=msa->next->nseq;
+  //   s2=0;
+  //   for (s=0; s2<ns; s++)
+  //   {
+  //     if (s==seq) msaseq=s2;
+  //     if (S2[s][0]) s2++;
+  //   }
+
+  //   printf("Parent MSA, M=%i, ns=%i\n", seq, ns);
+  //   s2=0;
+  //   for (s=0; s2<ns; s++)
+  //   {
+  //     if(S2[s][0])
+  //     {
+  //       nc=S->len[s];
+  //       for (c=0; c<nc; c++)
+  //       {
+  //         S2[s][c]->aa=S->seq[s][c];
+  //       }
+
+  //     int r=0;
+  //     st=msa;
+  //     while(st->next)
+  //     {
+  //       // printf("%c", st->aa);
+  //       if (st->aa==0) printf("-");
+  //       if (st->aa>0) {printf("%c", st->aa); st->aa=0;}
+  //       r++;
+  //       st=st->next;
+  //     }
+  //     if (s==seq) printf("\tM\n");
+  //     else printf("\n");
+  //     s2++;
+  //     }
+  //   }
+  // }
+  // printf("\n");
+  // // Print A
+  // printf("Alignment A, M=%i\n", subseq);
+  // for (s=0; s<A->nseq; s++)
+  // {
+  //   if (s==subseq) printf("%s\tM\n", A->seq_al[s]);
+  //   else printf("%s\n", A->seq_al[s]);
+  // }
+  // printf("\n\n");
+
+
+  // FILE *fp;
+  // fp=vfopen ("/home/sjin/projects/homoplasy/test-tcoffee-modified/child.fa", "a");
+  // for (s=0; s<A->nseq; s++)
+  // {
+  //   if (s==subseq) fprintf(fp, "%s\tM\n", A->seq_al[s]);
+  //   else fprintf(fp, "%s\n", A->seq_al[s]);
+  // }
+  // fprintf(fp, "\n\n");
+
+  // FILE *fp2;
+  // fp2=vfopen ("/home/sjin/projects/homoplasy/test-tcoffee-modified/parent.fa", "a");
+  // if (seq >= 0 && msa)
+  // {
+  //   int ns, nc, msaseq, s2;
+  //   ALNcol *st;
+
+  //   ns=msa->next->nseq;
+  //   s2=0;
+  //   for (s=0; s2<ns; s++)
+  //   {
+  //     if (s==seq) msaseq=s2;
+  //     if (S2[s][0]) s2++;
+  //   }
+
+  //   s2=0;
+  //   for (s=0; s2<ns; s++)
+  //   {
+  //     if(S2[s][0])
+  //     {
+  //       nc=S->len[s];
+  //       for (c=0; c<nc; c++)
+  //       {
+  //         S2[s][c]->aa=S->seq[s][c];
+  //       }
+
+  //     int r=0;
+  //     st=msa;
+  //     while(st->next)
+  //     {
+  //       // printf("%c", st->aa);
+  //       if (st->aa==0) fprintf(fp2, "-");
+  //       if (st->aa>0) {fprintf(fp2, "%c", st->aa); st->aa=0;}
+  //       r++;
+  //       st=st->next;
+  //     }
+  //     if (s==seq) fprintf(fp2, "\tM\n");
+  //     else fprintf(fp2, "\n");
+  //     s2++;
+  //     }
+  //   }
+  // }
+  // fprintf(fp2, "\n\n");
+
+
 
   // * Update homoplasy
   if (msa && check_homoplasy)    // If msa, so this part is not computed for the first subMSA (where !start !msa)
@@ -8260,7 +8370,9 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 
     // * Homoplasy 1
     // TODO the extension of gaps in child (smaller) because of gaps in parent should have different weight than the same in parent (larger)
+    // TODO so the gaps in child should have higher weight, since they have a more important effect on the MSA accuracy
     int rend, rup;
+    int d1g, d2g;
     if (startgap==1 || startGAP==1)r=-1; else r=0;
     if (endgap==1 || endGAP==1)rend=len; else rend=len-1;
     while(r<rend)
@@ -8275,7 +8387,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       }
       else if (r==len-1)  // gaps at the end
       {
-        last=(S2[seq][r]); while(last->next->aa!=-1)last=last->next; // get last column
+        last=(S2[seq][r]); while(last->next->aa>=0)last=last->next; // get last column
         d1=A->len_aln-rpos[r]-1;
         d2=last->index-(S2[seq][r])->index;     
         rup=1;
@@ -8286,6 +8398,8 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
         d2=(S2[seq][r+1])->index-(S2[seq][r])->index-1;
         rup=1;
       }
+      d1g=d1*(msa->next->nseq-1);
+      d2g=d2*(A->nseq-1);
       if (d1>0 || d2>0)  // update homoplasy
       {
         (S2[seq][r])->homoplasy++;    
@@ -8295,10 +8409,11 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
         (S2[seq][r])->whomoplasy_sum+=(d1 + d2);
         (S2[seq][r])->whomoplasy_child+=d1;
         (S2[seq][r])->whomoplasy_parent+=d2;
-        (S2[seq][r])->mergeGap+=d1*msa->next->nseq;
-        (S2[seq][r])->mergeGap+=d2*A->nseq;
-        (S2[seq][r])->mergeGap_child+=d1*msa->next->nseq;
-        (S2[seq][r])->mergeGap_parent+=d2*A->nseq;
+
+        (S2[seq][r])->mergeGap2+=d1g;
+        (S2[seq][r])->mergeGap2+=d2g;
+        (S2[seq][r])->mergeGap2_child+=d1g;
+        (S2[seq][r])->mergeGap2_parent+=d2g;
       }
       if (d1>0) (S2[seq][r])->homoplasy_child++;  
       if (d2>0) (S2[seq][r])->homoplasy_parent++;  
@@ -8306,8 +8421,8 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       {
         (S2[seq][r])->homoplasy_both++;  
         (S2[seq][r])->whomoplasy_both+=MIN(d1, d2);  
-        (S2[seq][r])->mergeGap_both+=d1*msa->next->nseq;
-        (S2[seq][r])->mergeGap_both+=d2*A->nseq;
+        (S2[seq][r])->mergeGap2_both+=d1g;  
+        (S2[seq][r])->mergeGap2_both+=d2g;
       }
       if(rup==1)r++;
     }
@@ -8337,7 +8452,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
       }
       // Parent
       if ((r==-1) && (startGAP==1)) {start=msa->next; end=S2[seq][0];}
-      else if ((r==len-1) && (endGAP==1)) {start=S2[seq][r]->next; end=start; while(end->aa!=-1)end=end->next;}
+      else if ((r==len-1) && (endGAP==1)) {start=S2[seq][r]->next; end=start; while(end->aa>=0)end=end->next;}
       else if ((r>-1) && (r<len-1)) {start=(S2[seq][r])->next; end=(S2[seq][r+1]);}
       while (start!=end)
       {
@@ -8399,7 +8514,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	    {
 	      p=S2[lu[s]][ir];graph[c]=p;
 	      p->nres+=rescount[c];     
-        p->msaGap+=gapcount[c];
+        p->msaGap+=msagap[c];
 
 	      break;
 	    }
@@ -8411,7 +8526,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	{
 	  p=graph[c]=(ALNcol*)declare_alncol();
 	  p->nres=rescount[c];
-    p->msaGap+=gapcount[c];
+    p->msaGap+=msagap[c];
 	}
       for (s=0; s<A->nseq; s++)
 	{	  
@@ -8471,7 +8586,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
 	    {
 	      st->nseq=nnseq;  //update number of sequences in the merged msa
 	      st->index=i++;   //update index of column
-	      st->ngap=st->nseq - st->nres;
+	      st->ngap=st->nseq - st->nres;  //update number of gaps after merging (and expanding gaps)
 	    }
 	  st=st->next;
 	}
@@ -8480,7 +8595,7 @@ ALNcol *msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   vfree (graph);
   vfree (lu);
   free_int (pos,-1);
-  vfree (gapcount); vfree(rescount);
+  vfree (gapcount); vfree(rescount); vfree(msagap);
   return msa;
 }  
 
