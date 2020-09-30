@@ -7763,7 +7763,7 @@ ALN_node declare_aln_node(int mode);
 int ktree2aln_bucketsF(KT_node K,char *fname);
 
 
-char   *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*PG);
+char   *kmsa2msa (NT_node T, KT_node K,Sequence *S, ALNcol***S2,ALNcol*PG);
 ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa,int seq);
 
 
@@ -7893,7 +7893,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   if (getenv ("DUMP_ALN_BUCKETS") ||getenv ("DUMP_ALN_BUCKETS_ONLY"))
     ktree2aln_bucketsF(K, "alndump.");
   
-  outname=kmsa2msa (K,S,NULL,NULL); 
+  outname=kmsa2msa (T, K,S,NULL,NULL); 
 
   declare_aln_node (-1);//Free all the nodes declared
   vfree (KL);
@@ -7911,7 +7911,7 @@ ALNcol* declare_alncol ()
   return p;
 }
 
-char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
+char *kmsa2msa (NT_node T, KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 {
   int a, s, c;
   Alignment *A=NULL;
@@ -7937,7 +7937,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
       int i =name_is_in_hlist((K->child[a])->name,S->name, S->nseq);
       A=quick_read_fasta_aln (A,K->child[a]->msaF);
       start=msa2graph (A,S, S2,start,i);
-      kmsa2msa (K->child[a], S, S2,start);
+      kmsa2msa (T, K->child[a], S, S2,start);
     }
   free_aln (A);
   
@@ -8018,6 +8018,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        myexit (fprintf_error (stderr, "-output=%s is not supported when using -reg [FATAL:%s]", output,PROGRAM));
     }
 
+  // homoplasy scores
   if (get_string_variable ("homoplasy"))
     {
        ALNcol*msa=start;
@@ -8028,7 +8029,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        unsigned long ngap=0;
        unsigned long ngap2=0;
        int len=0;
-       
+
        while (msa->next)
 	 {
 	   homoplasy+=msa->homoplasy;
@@ -8040,6 +8041,10 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
 	   msa=msa->next;
 	   if (msa->aa>=0)len++;
 	 }
+
+       // compute fragmentation score
+       Alignment *A=quick_read_fasta_aln(NULL,out);
+       float fragmentation = tree2fragmentation(T, A, S);
        
        fp2=vfopen (get_string_variable ("homoplasy"), "w");
        fprintf ( fp2, "HOMOPLASY: %d\n", homoplasy);
@@ -8049,6 +8054,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start)
        fprintf ( fp2, "LEN: %d\n", len-2);//substract start and end of msa data structure
        fprintf ( fp2, "NGAP: %lu\n", ngap);
        fprintf ( fp2, "NGAP2: %ul\n",ngap2);
+       fprintf ( fp2, "FRAGMENTATION: %f\n", fragmentation);
        vfclose (fp2);
     }
 
@@ -8264,6 +8270,95 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2,ALNcol*msa,int seq)
   vfree (gapcount); vfree(rescount);
   return msa;
 }  
+
+
+/*
+COMPUTE FRAGMENTATION SCORE
+*/
+float tree2fragmentation (NT_node p, Alignment *A, Sequence *S)
+{
+  float g,frag;
+  char *col;
+  int *col2;
+  char a;
+  int nx=seqname2seqindex4tree(p, S);  // transform tree's sequence name to index in MSA
+
+  for (int c=0; c<A->len_aln; c++)
+  {
+    // parse column
+    col=(char*)vcalloc (STRING,      sizeof (char));
+    col2=(int*)vcalloc (STRING,      sizeof (int));
+    for (int s=0; s<A->nseq; s++)
+    {
+      col[s]=A->seq_al[s][c];
+      if(col[s]=='-'){col2[s]=1;}  // set presence of gap
+      else{col2[s]=0;}
+    }
+    // calculate fragmentation score per column
+    g = tree2fragmentation_col(p, col2);
+    frag += g;
+  }
+  return frag;
+}
+
+float tree2fragmentation_col (NT_node p, int* col)
+{
+  float g;
+  float frag;
+  int n=0;
+  int nn=tree2nnode(p);
+  tnode** L=(NT_node*)vcalloc (nn+2, sizeof (NT_node));
+
+  while (p)
+    {
+      if (!p->visited)L[n++]=p;
+      
+      int x=++(p->visited);
+      
+      if (!p->isseq)
+	{
+	  if (x==1)
+	    {
+	      p=p->right;
+	    }
+	  else if (x==2)
+	    {
+	      p=p->left;
+	    }
+	  else if (x==3) 
+    {
+      // if node, update fragmentation score after visiting all children
+      g=p->right->frag+p->left->frag;
+      if(g!=0.0 && g!=1.0 && g!=p->leaf*1.0)  // if clash
+      {
+        g=sqrt(pow(p->right->frag,2) + pow(p->left->frag,2));
+      }  
+      p->frag=g;
+
+      if (p && !p->parent){frag=p->frag;}
+    }
+	}
+      
+      if (x>=3 || p->isseq)
+	  {
+    // if sequence, directly add presence of gap to frag
+	  if (p && p->isseq && !p->visited )
+    {
+      L[n++]=p, p->visited=1; 
+      g=col[atoi(p->name)-1]*1.0;
+      p->frag=g;
+      // printf("sequence %s %d %f\n", p->name, p->nseq, g);
+    }
+
+	  if (x>3)p=NULL;
+	  else if (p) p=p->parent;
+	  }
+  }
+
+  return frag;
+}
+
+
 
 int ktree2aln_bucketsF(KT_node K,char *fname)
 {

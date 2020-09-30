@@ -106,6 +106,10 @@ typedef struct tnode{
   char *seqal;
   int index;
   int fork;
+
+  // gap fragmentation score 
+  float frag;
+
     }Treenode;
 
 typedef struct split_struc Split;
@@ -317,6 +321,9 @@ NT_node * tree2node_list (NT_node T, NT_node *L);
 NT_node tree2root ( NT_node T);
 int new_tree_sort ( char *name, NT_node T);
 
+float tree2fragmentation (NT_node p, Alignment *A, Sequence *S); 
+float tree2fragmentation_col (NT_node p, int* col); 
+
 
 NT_node split2tree ( NT_node RT,Sequence *LIST, char *param);
 NT_node * read_tree_list (Sequence *S);
@@ -384,7 +391,7 @@ int kseq2kmsa   (NT_node T,KT_node *K, int n, char *method);
 
 char *tree2child_tree(NT_node T,char *seqF,char *treeF);
 char *reg_seq_file2msa_file (char *method,int nseq, char* seqF, char* msaF, char *treeF);
-char *kmsa2msa (Sequence *S,KT_node *KL, int n);
+char *kmsa2msa (NT_node T, Sequence *S,KT_node *KL, int n);
 int ktree2klist (KT_node K, KT_node *KL, int *n);
 KT_node tree2ktree (NT_node ROOT,NT_node T,Sequence *S, int N);
 Sequence* regtrim( Sequence *S,NT_node T,int N);

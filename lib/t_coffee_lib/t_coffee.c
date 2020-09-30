@@ -62,7 +62,7 @@
 */
 
 static void test();
-static char * get_seq_type_from_cl (int argc, char **argv);
+static char *get_seq_type_from_cl (int argc, char **argv);
 static char *get_defaults(char *buf, char *type);
 static char *get_evaluate_defaults(char *buf, char *type);
 static char *get_genome_defaults(char *buf, char *type);
@@ -116,6 +116,8 @@ char ** km_coffee (int argc, char **argv);
 Alignment * t_coffee_dpa (int argc, char **argv);
 Alignment *kmir(Alignment *A);
 int fastal_main(int argc, char **argv); //this function was declared in fastal.c
+
+float get_fragmentation(int argc, char **argv);
 
 #define is_a_seq_file(file) (!is_matrix(file) && !is_matrix(file+1) && !is_method (file) && !is_method (file+1) &&(check_file_exists(file) || check_file_exists(file+1)))
 static int NO_METHODS_IN_CL;
@@ -467,6 +469,9 @@ int batch_main ( int argc, char **argv)
 	/*error report*/
 	char *full_log;
 
+	/*fragmentation score*/
+	int fragm=0;
+
 	/*Multithread*/
 	char *multi_core;
 	int   n_core;
@@ -731,6 +736,24 @@ int batch_main ( int argc, char **argv)
 			    /*Max Value*/ "any"				\
 					  );
 
+			declare_name (type);
+	        get_cl_param(					\
+			    /*argc*/      argc           ,	\
+			    /*argv*/      argv           ,	\
+			    /*output*/    &le            ,	\
+			    /*Name*/      "-fragm"        ,	\
+			    /*Flag*/      &garbage       ,	\
+			    /*TYPE*/      "D"            ,	\
+			    /*OPTIONAL?*/ OPTIONAL       ,	\
+			    /*MAX Nval*/  1              ,		\
+			    /*DOC*/       "Get fragmentation score"           ,	\
+			    /*Parameter*/ &fragm          ,		\
+			    /*Def 1*/    "0"              ,		\
+			    /*Def 2*/    "1"              ,		\
+			    /*Min_value*/ "any"          ,		\
+			    /*Max Value*/ "any"				\
+					  );
+
 
 
 	       declare_name (plugins);
@@ -796,6 +819,10 @@ if (dpa)
     t_coffee_dpa (argc, argv);
   }
 
+if (fragm)
+  {
+	get_fragmentation(argc, argv);
+  }
 
 
 
@@ -7373,11 +7400,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   else output_dpa_tree=1;
   
   //Save Guide Tree for Children Aligners
-  
   fprintf ( le, "!Compute Guide Tree ---  done\n");
-  
- 
-  
   
   //get the weight
   fprintf (le, "!Compute Weights --- ");
@@ -7391,7 +7414,8 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   
   alnfile=tree2msa4dpa(T, S, dpa_nseq, command);
   fprintf ( le, "!Compute MSA --- done\n");
- 
+
+
   printf_system ("mv %s %s", alnfile, outfile);
   display_output_filename (le, "MSA",get_string_variable ("output"),outfile, CHECK);
   if (homoplasy)display_output_filename (le, "HOMOPLASY","homoplasy",homoplasy, CHECK);
@@ -7412,6 +7436,119 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   fprintf (le,"\n\n");
   print_command_line (le);
   print_mem_usage (le, "REG memory Usage");
+  print_program_information (le, NULL);
+  fprintf ( le, "\n");
+  myexit (EXIT_SUCCESS);
+  return NULL;
+}
+
+
+float get_fragmentation (int argc, char **argv)
+{
+  NT_node T;
+  Sequence *S=NULL;
+  Alignment *A=NULL;
+  char *alnfile=NULL;
+  char *treefile=NULL;
+  char *outfile=NULL;
+  char *se_name;
+  Fname *F=NULL;
+  FILE *fp;
+  FILE *le;
+  float fragmentation=0.0;
+  int alnflag=0;
+  int treeflag=0;
+  int n_core=1;
+  int a;
+  float *w;
+  
+
+  /* This is used for the dump function see -dump option*/
+  declare_name (se_name);
+  sprintf (se_name, "stderr");
+  le=get_stdout1(se_name);
+
+  /* parse arguments */
+  for (a=1; a<argc; a++)
+    {
+      
+      if ( argv[a][0]!='-')
+	{
+	  myexit (fprintf_error (stderr, "%s is an unknown flag of the -fragm mode [FATAL:%s]", argv[a],PROGRAM));
+	}
+      if (strm (argv[a], "-infile" ))
+	{
+	  alnfile=argv[++a];
+	  alnflag=1;
+	}
+      else if (strm (argv[a],"-thread"))
+	{
+	  n_core=atoi(argv[++a]);
+	}
+      else if (strm (argv[a],"-usetree"))
+	{
+	  treefile=argv[++a];
+      treeflag=1;
+	}
+    //   else if (strm (argv[a],"-outfile"))
+	// {
+	//   outfile=argv[++a];
+	// }
+	  else if (strm (argv[a],"-fragm"));
+      else 
+	{
+	   myexit (fprintf_error (stderr, "%s is an unknown flag of the -fragm mode [FATAL:%s]", argv[a],PROGRAM));
+	}
+    }
+
+
+  //Core management
+  if (n_core==0)n_core=get_nproc();
+  set_nproc (n_core);
+  set_int_variable ("n_core",n_core);
+  fprintf ( le, "!Maximum N Threads --- %d\n",get_nproc());
+
+  // read alignment
+  fprintf ( le, "----Reading alignment file %s\n", alnfile);
+  S=quick_read_seq (alnfile);
+  A=quick_read_fasta_aln(NULL,alnfile);
+  fprintf ( le, "----Reading tree file %s\n", treefile);
+
+  // read tree
+  T=seq2dnd (S, treefile);
+  w=seq2dpa_weight (S, "longuest");
+  T=node2master (T, S, w);
+
+  fprintf ( le, "!Read input files ---  done\n");
+
+
+//   printf("name [current: %s] [right: %s] [left: %s]\n", T->name, T->right->name, T->left->name);
+//   printf("leaves [current: %d] [right: %d] [left: %d]\n", T->leaf, T->right->leaf, T->left->leaf);
+  
+  
+  //check all input files are here
+  if (!alnflag)
+    myexit (fprintf_error ( stderr, "\nERROR: When using -fragm, alignment file must be provided via -infile [FATAL:%s]", PROGRAM));
+  else if (!S)
+    myexit (fprintf_error ( stderr, "\nERROR: Could not read %s [FATAL:%s] as sequences", alnfile, PROGRAM));
+  else if (!A)
+    myexit (fprintf_error ( stderr, "\nERROR: Could not read %s [FATAL:%s] as alignment", alnfile, PROGRAM));
+  if (!treeflag)
+    myexit (fprintf_error ( stderr, "\nERROR: When using -fragm, tree file must be provided via -usetree [FATAL:%s]", PROGRAM));
+  else if (!T)
+    myexit (fprintf_error ( stderr, "\nERROR: Could not read %s [FATAL:%s]", treefile, PROGRAM));
+
+  
+  // compute fragmentation score 
+  fragmentation=tree2fragmentation(T, A, S);
+  fprintf(le, "FRAGMENTATION: %f\n", fragmentation);
+  printf("%f\n", fragmentation);
+
+  
+  //terminate
+  fprintf (le,"\n\n");
+  print_command_line (le);
+  print_mem_usage (le, "FRAGM memory Usage");
   print_program_information (le, NULL);
   fprintf ( le, "\n");
   myexit (EXIT_SUCCESS);
