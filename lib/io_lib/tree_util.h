@@ -5,12 +5,13 @@ typedef struct ALNcol
 {
   int aa;
   long index;
-  int homoplasy;
-  int whomoplasy;
-  int whomoplasy2;
-  int ngap;
-  int nres;
-  int nseq;
+  long ngap;
+  long nres;
+  long nseq;
+  unsigned int homoplasy;
+  unsigned int whomoplasy;
+  unsigned int whomoplasy2;
+  unsigned int msaGap;
   //int id //put this back when debugging pointers
 struct ALNcol *next;
 };
