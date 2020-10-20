@@ -5081,9 +5081,9 @@ get_cl_param(\
 	       
 	       
 	
-	       /**
-	        * If the Constraint_list should, for some reason, be empty afterwards, report an Error.
-	        */
+	    //    /**
+	    //     * If the Constraint_list should, for some reason, be empty afterwards, report an Error.
+	    //     */
 	       if ( (CL->S)->nseq>1 && CL->ne==0 && !CL->M &&!(do_convert && n_list>0))
 		 {
 		   fprintf ( stderr, "\n******************ERROR*****************************************\n");
@@ -7124,6 +7124,10 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   FILE *le;
   char *se_name;
   char *homoplasy=NULL;
+  char *reg_tcs=NULL;
+  char *reg_tcsmethod=NULL;
+  int reg_ntcs=0; 
+  int reg_mintcs=5;  // min sequence required to compute TCS
   int reg_dynamic=1;
   int reg_pool=0;
   int n_core=1;
@@ -7268,10 +7272,25 @@ Alignment * t_coffee_dpa (int argc, char **argv)
 	  myexit (fprintf_error (stderr, "%s is not supported when using -dpa [FATAL:%s]", argv[a],PROGRAM));
 	}
      
-      else if ( strstr (argv[a], "reg_homoplasy"))
+      else if ( strm (argv[a], "-reg_homoplasy"))
 	{
 	  homoplasy=(char*)vcalloc ( 1000, sizeof (char));
-	 
+	}
+	  else if ( strm (argv[a], "-reg_tcs"))
+	{
+	  reg_tcs=(char*)vcalloc ( 1000, sizeof (char));
+	}
+	  else if ( strm (argv[a], "-reg_tcsmethod"))
+	{
+	  reg_tcsmethod=(char*)vcalloc ( 1000, sizeof (char));
+	}
+	  else if (strm (argv[a], "-reg_ntcs"))
+	{
+	  reg_ntcs=atoi(argv[++a]);
+	}
+	  else if (strm (argv[a], "-reg_mintcs"))
+	{
+	  reg_mintcs=atoi(argv[++a]);
 	}
       else if (argv[a][0]=='-' &&(a==argc-1 || argv[a+1][0]=='-'))
 	{
@@ -7363,6 +7382,23 @@ Alignment * t_coffee_dpa (int argc, char **argv)
       sprintf (homoplasy, "%s.homoplasy", F->name);
       set_string_variable("homoplasy", homoplasy);
     }
+  if (reg_tcs)
+	{
+	  sprintf (reg_tcs, "%s.tcs", F->name);
+	  set_string_variable("reg_tcs", reg_tcs);
+	}
+  if (reg_tcsmethod)
+	{
+	  set_string_variable("reg_tcsmethod", reg_tcsmethod);
+	}
+  if (reg_ntcs)
+    {
+	  set_int_variable("reg_ntcs", reg_ntcs);
+	}
+  if (reg_mintcs)
+	{
+	  set_int_variable("reg_mintcs", reg_mintcs);
+	}
   
   
   //check Sequences are here
@@ -7423,6 +7459,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   printf_system ("mv %s %s", alnfile, outfile);
   display_output_filename (le, "MSA",get_string_variable ("output"),outfile, CHECK);
   if (homoplasy)display_output_filename (le, "HOMOPLASY","homoplasy",homoplasy, CHECK);
+  if (reg_tcs) display_output_filename (le, "TCS", "tcs", reg_tcs, CHECK);
   
   //output The tree
   if (output_dpa_tree)

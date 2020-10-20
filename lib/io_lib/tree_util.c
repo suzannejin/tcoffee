@@ -7784,7 +7784,15 @@ NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char *method)
   return kmsa2dnd  (S,KL,n);
 }
 
-//This function pools into a single file all the children sequences until they contain a maximum of N*2-1 sequences
+/**
+ * * Function: POOL
+ * This function pools into a single file all the children sequences until they contain a maximum of N*2-1 sequences
+ * 
+ * input - KT_node *K1
+ *         int n1: number of nodes K
+ *         int *n2in: &n2
+ *         int N: regressive N
+ */
 KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
 {
   int a,b, cn;
@@ -7796,41 +7804,42 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
   //for ( a=0; a<n1; a++){if (K1[a]->nseq<N)pool=1;}
   //if (!pool)return NULL;
   
- 
-
-  nseq=declare_int(n1, 2);
+  // * Get the number of sequences in each K node, and sort them by nseq in increasing order
+  nseq=declare_int(n1, 2);  
   for ( a=0; a<n1; a++)
     {
       nseq[a][0]=a;
       nseq[a][1]=K1[a]->nseq;
-      
     }
-  sort_int (nseq, 2, 1, 0,n1-1);
+  sort_int (nseq, 2, 1, 0,n1-1);  
   
-
+  // allocate some space
   K2=(KT_node*)vcalloc (n1, sizeof (KT_node));
   for (a=0; a<n1; a++)K2[a]=(KT_node)vcalloc (1, sizeof (KTreenode));
-  
+
+  // * the actual pooling process
   for (cn=0,n2=0, b=0; b< n1; b++)
     {
       if ( cn==0)
-	{
+	{ // start: defines the files
 	  K2[n2]->seqF=vtmpnam (NULL);
 	  K2[n2]->msaF=vtmpnam (NULL);
 	  K2[n2]->treeF=vtmpnam (NULL);
-	  
 	  n2++;
 	}
       a=nseq[b][0];
-      cn+=K1[a]->nseq;
+      cn+=K1[a]->nseq; // total number of sequences in one common pooled file
       
-      printf_system ("cat %s >> %s", K1[a]->seqF, K2[n2-1]->seqF);
+      // add the sequences to the common file
+      printf_system ("cat %s >> %s", K1[a]->seqF, K2[n2-1]->seqF);  
       K2[n2-1]->nseq=cn;
-      
+
+      // update K1, since K2's nodes might include several K1's node, this should be indicated in K1 and link the correct files
       K1[a]->msaF=K2[n2-1]->msaF;
      
-      if (cn>=N)cn=0;
-      
+      // stop and restart the cycle when the pooled sequences >= N (regressive bucket)
+      // so the maximum n of sequences will be 2N-1, resulting from the pooling of N-1 + N
+      if (cn>=N)cn=0; 
     }
   
   free_int (nseq, -1);
@@ -7852,6 +7861,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   int n2=0;
   int docons=0;
   int N2;
+  int **tcs;
   
   n=ktree2klist(K,KL,&n);
   ktree2display (K, "1");
@@ -7863,13 +7873,14 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
  
   //if (docons){N2=N*10;pool=1;}
   //else N2=N;
-  
+
   //This is where the slave MSAs are computed, all at once.
   if ( dopool && (KL2=pool(KL, n, &n2,N))!=NULL)
     {
       int a;
          
       kseq2kmsa(T,KL2,n2, method);
+      if (get_string_variable ("reg_tcs"))tcs=tree2tcs(KL2, NULL, n2);
       
       for (a=0; a<n; a++)
 	{
@@ -7884,18 +7895,137 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
       vfree (KL2);
     }
   else
-    {
-       
+    { 
       kseq2kmsa(T,KL,n, method);
+      
+      // TODO check why calling t_coffee to compute the libraries using mafft_msa method does not work (library size 0)
+      // whereas it does work when calling from CL
+      if (get_string_variable ("reg_tcs"))tcs=tree2tcs(KL, NULL, n);
     }
+
   if (getenv ("DUMP_ALN_BUCKETS") ||getenv ("DUMP_ALN_BUCKETS_ONLY"))
     ktree2aln_bucketsF(K, "alndump.");
-  
+
   outname=kmsa2msa (K,S,NULL,NULL); 
 
   declare_aln_node (-1);//Free all the nodes declared
-  vfree (KL);
+  vfree (KL); vfree(tcs);
   return outname;
+}
+
+/**
+ * * COMPUTE TCS
+ * it computes TCS for each subMSA, calculates the statistics (min, max, avg, sum), and writes the values to a file
+ * input - KT_node *KL : array of KT_node
+ *       - char *method : method used to compute the library. Default=proba_pair
+ *       - int n : length of KT_node
+ * return  int **tcs : 2d array { tcs=[number of node][0], nseq=[number of seqs][1] }
+ */
+int** tree2tcs (KT_node *KL, char *method, int n)
+{
+  int i,b;
+  char *tcsfile;
+  FILE *fp;
+  int **tcs;
+  int min_seq, ntcs;
+  KT_node *KL2;
+
+  // library method
+  method=get_string_variable("reg_tcsmethod");
+  if(method==NULL)method="proba_pair";
+
+  // min sequences required to compute tcs. default=5
+  min_seq=get_int_variable("reg_mintcs"); 
+
+  // subMSA size for tcs
+  ntcs=get_int_variable("reg_ntcs");
+  KL2=(KT_node*)vcalloc (n, sizeof (KT_node));
+  for (i=0; i<n; i++)KL2[i]=(KT_node)vcalloc (1, sizeof (KTreenode));
+
+  // * compute TCS
+  tcs=declare_int(n, 2); 
+  for (b=0, i=0; i<n; i++)
+    {
+
+      if ((ntcs>0) && (KL[i]->nseq>ntcs)) // if ntcs specified by user, trim the subMSAs
+    {
+      KL2[i]->nseq=ntcs;
+      KL2[i]->msaF=vtmpnam (NULL);
+      //TODO solve null treeF. Extract the tmp tree file generated with dynamic.pl
+      printf_system("t_coffee -other_pg seq_reformat -in %s -in2 %s -action +regtrim %d > %s", KL[i]->msaF, KL[i]->treeF, ntcs, KL2[i]->msaF);
+    }
+      else
+    {
+      KL2[i]->nseq=KL[i]->nseq;
+      KL2[i]->msaF=KL[i]->msaF;
+    }
+
+      if (KL[i]->nseq >= min_seq) 
+    {
+        
+        // compute library and determine TCS score
+        tcsfile=vtmpnam (NULL);
+        printf_system("t_coffee -infile %s -evaluate -method %s -outfile %s -output score_ascii\n", KL2[i]->msaF, method, tcsfile);
+        
+        // read tcs score from tmp
+        char line[128];
+        char search[12]="SCORE=";
+        char *d="=";
+        char *match, *match2;
+        fp=vfopen(tcsfile, "r");
+        while( fgets(line, sizeof line, fp)!=NULL )
+        {
+          match=strstr(line,search);    // this will return SCORE=%d
+          match2=strtok(match, d);      // token point to the part before the =
+          match2=strtok(NULL, d);       // token point to the part after the =
+          if (match2){break;}  
+        }
+        vfclose(fp);
+        tcs[b][0]=atoi(match2); tcs[b][1]=KL2[i]->nseq;
+        b++;
+    }
+    }
+
+  // * write TCS to output file
+  tcs2file(tcs, b);
+
+  vfree(KL2);
+  return tcs;
+}
+
+int tcs2file(int **tcs, int n)
+{
+  FILE *fp;
+  int min, max, sum;
+  float avg;
+
+  // compute statistics
+  max=sum=0; min=tcs[0][0];
+  for (int i=0; i<n; i++)
+    {
+      int v=tcs[i][0];
+      if(v<min)min=v;
+      if(v>max)max=v;
+      sum=sum+v;
+    }
+  avg=(float)sum/n;
+
+  // write statistics
+  fp=vfopen (get_string_variable ("reg_tcs"), "w");
+  fprintf(fp, "SUM: %d\n", sum);
+  fprintf(fp, "AVG: %f\n", avg);
+  fprintf(fp, "MIN: %d\n", min);
+  fprintf(fp, "MAX: %d\n", max);
+
+  // write tcs per knode
+  fprintf(fp, "\n\nn tcs nseq\n");
+  for (int i=0; i<n; i++)
+    {
+      fprintf(fp, "%d %d %d\n", i, tcs[i][0], tcs[i][1]);
+    }
+  vfclose(fp);
+
+  return 1;
 }
 
 	
