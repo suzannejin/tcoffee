@@ -7800,6 +7800,9 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
   KT_node*K2;
   int n2;
   int **nseq;
+  Sequence *S;
+  char *tmp;
+  FILE *fp;
 
   //for ( a=0; a<n1; a++){if (K1[a]->nseq<N)pool=1;}
   //if (!pool)return NULL;
@@ -7832,16 +7835,29 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
       
       // add the sequences to the common file
       printf_system ("cat %s >> %s", K1[a]->seqF, K2[n2-1]->seqF);  
-      K2[n2-1]->nseq=cn;
 
       // update K1, since K2's nodes might include several K1's node, this should be indicated in K1 and link the correct files
       K1[a]->msaF=K2[n2-1]->msaF;
-     
-      // stop and restart the cycle when the pooled sequences >= N (regressive bucket)
-      // so the maximum n of sequences will be 2N-1, resulting from the pooling of N-1 + N
-      if (cn>=N)cn=0; 
+      
+      if (cn>=N)
+        {
+          // remove repeated master sequences
+          tmp=vtmpnam (NULL);
+          printf_system("awk '/^>/{f=!d[$1] && d[$1]=1}f' %s > %s\n", K2[n2-1]->seqF, tmp);
+          printf_system("cat %s > %s\n", tmp, K2[n2-1]->seqF);
+
+          // update nseq
+          cn=0;
+          printf_system("cat %s | grep -E '^>' | wc -l > %s\n", K2[n2-1]->seqF, tmp);
+          fp=vfopen(tmp, "r");fscanf(fp, "%d", &cn);vfclose(fp);
+          K2[n2-1]->nseq=cn;
+
+          // stop and restart the cycle when the pooled sequences >= N (regressive bucket)
+          // so the maximum n of sequences will be 2N-1, resulting from the pooling of N-1 + N
+          cn=0;  
+        }
     }
-  
+
   free_int (nseq, -1);
   n2in[0]=n2;
   return K2;
@@ -7861,7 +7877,6 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   int n2=0;
   int docons=0;
   int N2;
-  int **tcs;
   
   n=ktree2klist(K,KL,&n);
   ktree2display (K, "1");
@@ -7880,16 +7895,16 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
       int a;
          
       kseq2kmsa(T,KL2,n2, method);
-      if (get_string_variable ("reg_tcs"))tcs=tree2tcs(KL2, NULL, n2);
+      if (get_string_variable ("reg_tcs")!=NULL)tree2tcs(T, KL2, NULL, n2);
       
       for (a=0; a<n; a++)
 	{
-
 	  //Be carefull not to overwrite msaF: it is common to all the pooled buckets
 	  char *tmp=vtmpnam (NULL);
 	  trim_fastaF_big  ( KL[a]->msaF, KL[a]->seqF,tmp, NULL, NULL, NULL);
 	  KL[a]->msaF=tmp;
 	  ungap_fastaF_big ( KL[a]->msaF, KL[a]->msaF, 100);
+
 	  vfree(KL2[a]);
 	}
       vfree (KL2);
@@ -7900,7 +7915,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
       
       // TODO check why calling t_coffee to compute the libraries using mafft_msa method does not work (library size 0)
       // whereas it does work when calling from CL
-      if (get_string_variable ("reg_tcs"))tcs=tree2tcs(KL, NULL, n);
+      if (get_string_variable ("reg_tcs")!=NULL)tree2tcs(T, KL, NULL, n);
     }
 
   if (getenv ("DUMP_ALN_BUCKETS") ||getenv ("DUMP_ALN_BUCKETS_ONLY"))
@@ -7909,7 +7924,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   outname=kmsa2msa (K,S,NULL,NULL); 
 
   declare_aln_node (-1);//Free all the nodes declared
-  vfree (KL); vfree(tcs);
+  vfree (KL); 
   return outname;
 }
 
@@ -7921,7 +7936,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
  *       - int n : length of KT_node
  * return  int **tcs : 2d array { tcs=[number of node][0], nseq=[number of seqs][1] }
  */
-int** tree2tcs (KT_node *KL, char *method, int n)
+int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
 {
   int i,b;
   char *tcsfile;
@@ -7942,6 +7957,8 @@ int** tree2tcs (KT_node *KL, char *method, int n)
   KL2=(KT_node*)vcalloc (n, sizeof (KT_node));
   for (i=0; i<n; i++)KL2[i]=(KT_node)vcalloc (1, sizeof (KTreenode));
 
+  printf("%d\n", ntcs);
+
   // * compute TCS
   tcs=declare_int(n, 2); 
   for (b=0, i=0; i<n; i++)
@@ -7951,7 +7968,7 @@ int** tree2tcs (KT_node *KL, char *method, int n)
     {
       KL2[i]->nseq=ntcs;
       KL2[i]->msaF=vtmpnam (NULL);
-      //TODO solve null treeF. Extract the tmp tree file generated with dynamic.pl
+      KL[i]->treeF=tree2child_tree(T,KL[i]->seqF,getenv("child_tree_4_TCOFFEE"));
       printf_system("t_coffee -other_pg seq_reformat -in %s -in2 %s -action +regtrim %d > %s", KL[i]->msaF, KL[i]->treeF, ntcs, KL2[i]->msaF);
     }
       else
@@ -7988,9 +8005,10 @@ int** tree2tcs (KT_node *KL, char *method, int n)
 
   // * write TCS to output file
   tcs2file(tcs, b);
+  printf("%d\n", ntcs);
 
-  vfree(KL2);
-  return tcs;
+  vfree(KL2); vfree(tcs);
+  return 1;
 }
 
 int tcs2file(int **tcs, int n)
@@ -8880,7 +8898,6 @@ int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method)
   int a, b;
   int nt=0;
   //split the jobs
-  
  
   KL=(KT_node**)vcalloc(nproc+1, sizeof (KT_node*));
   for (b=0; b<nproc; b++)
