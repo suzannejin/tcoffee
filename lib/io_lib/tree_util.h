@@ -393,7 +393,9 @@ Sequence* regtrim( Sequence *S,NT_node T,int N);
 KT_node *free_ktree (KT_node k);
 char * kmsa2msa_d (Sequence *S,KT_node K, int max, int *cn);
 
+KT_node *kl2treeF(NT_node T, KT_node *KL, int n);
 int tree2tcs (NT_node T, KT_node *KL, char *method, int n);
 int tcs2file (int **tcs, int n);
+
 
 #endif

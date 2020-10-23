@@ -7824,7 +7824,7 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
   for (cn=0,n2=0, b=0; b< n1; b++)
     {
       if ( cn==0)
-	{ // start: defines the files
+	{ // start: defines the tmp files
 	  K2[n2]->seqF=vtmpnam (NULL);
 	  K2[n2]->msaF=vtmpnam (NULL);
 	  K2[n2]->treeF=vtmpnam (NULL);
@@ -7854,7 +7854,7 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
 
           // stop and restart the cycle when the pooled sequences >= N (regressive bucket)
           // so the maximum n of sequences will be 2N-1, resulting from the pooling of N-1 + N
-          cn=0;  
+          if(cn>=N)cn=0;  
         }
     }
 
@@ -7894,12 +7894,13 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
     {
       int a;
          
+      KL2=kl2treeF(T, KL2, n2);
       kseq2kmsa(T,KL2,n2, method);
       if (get_string_variable ("reg_tcs")!=NULL)tree2tcs(T, KL2, NULL, n2);
       
       for (a=0; a<n; a++)
 	{
-	  //Be carefull not to overwrite msaF: it is common to all the pooled buckets
+	  //Be carefull not to overwrite msaF: it is common to all the pooled buckets 
 	  char *tmp=vtmpnam (NULL);
 	  trim_fastaF_big  ( KL[a]->msaF, KL[a]->seqF,tmp, NULL, NULL, NULL);
 	  KL[a]->msaF=tmp;
@@ -7911,10 +7912,8 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
     }
   else
     { 
+      KL=kl2treeF(T, KL, n);
       kseq2kmsa(T,KL,n, method);
-      
-      // TODO check why calling t_coffee to compute the libraries using mafft_msa method does not work (library size 0)
-      // whereas it does work when calling from CL
       if (get_string_variable ("reg_tcs")!=NULL)tree2tcs(T, KL, NULL, n);
     }
 
@@ -7928,6 +7927,27 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   return outname;
 }
 
+/** 
+ * * Determine child treeF for each knode
+ * Call tree2child_tree for each knode:
+ *    1. prune if -child_tree=parent
+ *    2. otherwise output 'default' to dynamic.pl
+ * 
+ * The treeF obtained in case 1 will be useful for kmsa computation (in case 2 the tree is implicit during kmsa computation with dynamic.pl script),
+ * but it will be also useful to retrieve n sequences from each kmsa for TCS computation.
+ * However, now the latter only works when -child_tree=parent
+ * TODO modify the implementation to deal with -child_tree=default in regressive TCS computation.
+ */
+KT_node *kl2treeF(NT_node T, KT_node *KL, int n)
+{
+  int a;
+  for (a=0; a<n; a++)
+    {
+      KL[a]->treeF=tree2child_tree(T,KL[a]->seqF,getenv("child_tree_4_TCOFFEE"));
+    }
+  return KL;
+}
+
 /**
  * * COMPUTE TCS
  * it computes TCS for each subMSA, calculates the statistics (min, max, avg, sum), and writes the values to a file
@@ -7935,6 +7955,8 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
  *       - char *method : method used to compute the library. Default=proba_pair
  *       - int n : length of KT_node
  * return  int **tcs : 2d array { tcs=[number of node][0], nseq=[number of seqs][1] }
+ * 
+ * TODO check why calling t_coffee to compute the libraries using mafft_msa method does not work (library size 0) whereas it does work when calling from CL
  */
 int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
 {
@@ -7957,8 +7979,6 @@ int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
   KL2=(KT_node*)vcalloc (n, sizeof (KT_node));
   for (i=0; i<n; i++)KL2[i]=(KT_node)vcalloc (1, sizeof (KTreenode));
 
-  printf("%d\n", ntcs);
-
   // * compute TCS
   tcs=declare_int(n, 2); 
   for (b=0, i=0; i<n; i++)
@@ -7968,7 +7988,6 @@ int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
     {
       KL2[i]->nseq=ntcs;
       KL2[i]->msaF=vtmpnam (NULL);
-      KL[i]->treeF=tree2child_tree(T,KL[i]->seqF,getenv("child_tree_4_TCOFFEE"));
       printf_system("t_coffee -other_pg seq_reformat -in %s -in2 %s -action +regtrim %d > %s", KL[i]->msaF, KL[i]->treeF, ntcs, KL2[i]->msaF);
     }
       else
@@ -8002,19 +8021,18 @@ int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
         b++;
     }
     }
-
-  // * write TCS to output file
   tcs2file(tcs, b);
-  printf("%d\n", ntcs);
 
   vfree(KL2); vfree(tcs);
   return 1;
 }
 
+// * write TCS to output file
 int tcs2file(int **tcs, int n)
 {
   FILE *fp;
-  int min, max, sum;
+  int min, max;
+  long sum, v2;
   float avg;
 
   // compute statistics
@@ -8024,13 +8042,14 @@ int tcs2file(int **tcs, int n)
       int v=tcs[i][0];
       if(v<min)min=v;
       if(v>max)max=v;
-      sum=sum+v;
+      v2=(long)v;
+      sum=sum+v2;
     }
   avg=(float)sum/n;
 
   // write statistics
   fp=vfopen (get_string_variable ("reg_tcs"), "w");
-  fprintf(fp, "SUM: %d\n", sum);
+  fprintf(fp, "SUM: %ld\n", sum);
   fprintf(fp, "AVG: %f\n", avg);
   fprintf(fp, "MIN: %d\n", min);
   fprintf(fp, "MAX: %d\n", max);
@@ -8926,7 +8945,7 @@ int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method)
 	    {
 	      KT_node LK=KL[a][b];
 	      initiate_vtmpnam(NULL);//make sure existing tmp are not deleted when exiting.
-	      LK->treeF=tree2child_tree(T,LK->seqF,getenv("child_tree_4_TCOFFEE"));
+        // LK->treeF=tree2child_tree(T,LK->seqF,getenv("child_tree_4_TCOFFEE"));
 	      reg_seq_file2msa_file (method,LK->nseq,LK->seqF, LK->msaF, LK->treeF);
 	      b++;
 	      if ( a==0)
