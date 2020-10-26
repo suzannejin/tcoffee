@@ -4,20 +4,31 @@
 typedef struct ALNcol
 {
   int aa;
-  long index;
-  long ngap;
-  long nres;
-  long nseq;
+  int nseq;
+  int index;
+  unsigned int ngap;
+  unsigned int nres;
+  unsigned int msaGap;
   unsigned int homoplasy;
   unsigned int whomoplasy;
   unsigned int whomoplasy2;
-  unsigned int msaGap;
   //int id //put this back when debugging pointers
 struct ALNcol *next;
 };
 typedef struct ALNcol ALNcol;
 
+typedef struct ALNseq
+{
+  unsigned int ngap;
+  unsigned int nres;
+  unsigned int msaGap;
+  float homoplasy;
+  int master;
+};
+typedef struct ALNseq ALNseq;
+
 typedef struct alnnode *ALN_node;
+
 typedef struct alnnode
 {
   char aa;
@@ -385,7 +396,7 @@ int kseq2kmsa   (NT_node T,KT_node *K, int n, char *method);
 
 char *tree2child_tree(NT_node T,char *seqF,char *treeF);
 char *reg_seq_file2msa_file (char *method,int nseq, char* seqF, char* msaF, char *treeF);
-char *kmsa2msa (Sequence *S,KT_node *KL, int n);
+char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se);
 int ktree2klist (KT_node K, KT_node *KL, int *n);
 KT_node tree2ktree (NT_node ROOT,NT_node T,Sequence *S, int N);
 Sequence* regtrim( Sequence *S,NT_node T,int N);
@@ -397,5 +408,7 @@ KT_node *kl2treeF(NT_node T, KT_node *KL, int n);
 int tree2tcs (NT_node T, KT_node *KL, char *method, int n);
 int tcs2file (int **tcs, int n);
 
+int seqhomo2file(ALNseq **Se, Sequence *S, unsigned long aln_len);
+int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len);
 
 #endif

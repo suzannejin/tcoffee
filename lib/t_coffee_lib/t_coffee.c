@@ -7124,6 +7124,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   FILE *le;
   char *se_name;
   char *homoplasy=NULL;
+  char *seq_homoplasy=NULL;
   char *reg_tcs=NULL;
   char *reg_tcsmethod=NULL;
   int reg_ntcs=0; 
@@ -7275,6 +7276,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
       else if ( strm (argv[a], "-reg_homoplasy"))
 	{
 	  homoplasy=(char*)vcalloc ( 1000, sizeof (char));
+	  seq_homoplasy=(char*)vcalloc ( 1000, sizeof (char));
 	}
 	  else if ( strm (argv[a], "-reg_tcs"))
 	{
@@ -7380,7 +7382,9 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   if (homoplasy)
     {
       sprintf (homoplasy, "%s.homoplasy", F->name);
+	  sprintf (seq_homoplasy, "%s.seq_homoplasy", F->name);
       set_string_variable("homoplasy", homoplasy);
+	  set_string_variable("seq_homoplasy", seq_homoplasy);
     }
   if (reg_tcs)
 	{
