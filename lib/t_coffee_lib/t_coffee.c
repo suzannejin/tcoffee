@@ -367,6 +367,7 @@ int batch_main ( int argc, char **argv)
 	int do_genepred;
 	int do_convert;
 	int do_version;
+	int do_verbose;
 	/*Genepred_score*/
 	char *genepred_score;
 
@@ -537,6 +538,31 @@ int batch_main ( int argc, char **argv)
 	  * Read all the parameters of T_Coffee using ::get_cl_param
 	  *
 	 */
+
+/* PARAMETER : 	VERBOSE MODE 	*/
+	       declare_name (type);
+	       get_cl_param(					\
+			    /*argc*/      argc           ,	\
+			    /*argv*/      argv           ,	\
+			    /*output*/    &le            ,	\
+			    /*Name*/      "-verbose"        ,	\
+			    /*Flag*/      &garbage       ,	\
+			    /*TYPE*/      "D"            ,	\
+			    /*OPTIONAL?*/ OPTIONAL       ,	\
+			    /*MAX Nval*/  1              ,		\
+			    /*DOC*/       "Verbose mode"           ,	\
+			    /*Parameter*/ &do_verbose          ,		\
+			    /*Def 1*/    "0"              ,		\
+			    /*Def 2*/    "1"              ,		\
+			    /*Min_value*/ "any"          ,		\
+			    /*Max Value*/ "any"				\
+					  );
+
+	if ( do_verbose)
+	{
+		set_int_variable("do_verbose", do_verbose);
+	}
+
 
 /*PARAMETER PROTOTYPE:    READ PARAMETER FILE     */
 	         get_cl_param(\
@@ -788,15 +814,13 @@ int batch_main ( int argc, char **argv)
 		* \endcode
 		*
 		*/
-	       
+
 
 if (dpa)
   {
     dump_io_start (NULL);
     t_coffee_dpa (argc, argv);
   }
-
-
 
 
 /* extra>prompt>special>parameters>defaults*/
@@ -958,9 +982,7 @@ argv=merge_list ( argv, &argc);
 			    /*Def 2*/     "1"             ,\
 			    /*Min_value*/ "0"            ,\
 			    /*Max Value*/ "1"             \
-		   );
-
-	       
+		   );	       
 
 /*PARAMETER PROTOTYPE:    DO EVALUATE      */
 	       get_cl_param(\
@@ -7131,6 +7153,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   int reg_mintcs=5;  // min sequence required to compute TCS
   int reg_dynamic=1;
   int reg_pool=0;
+  int reg_extgap=0;  // consider external gaps in M sequece or not (0 by default)
   int n_core=1;
   
   /* This is used for the dump function see -dump option*/
@@ -7253,12 +7276,14 @@ Alignment * t_coffee_dpa (int argc, char **argv)
       else if (strm (argv[a],"-dynamic") || strm (argv[a],"-reg_dynamic") )
 	{
 	  reg_dynamic=atoi(argv[++a]);
-	  
 	}
       else if (strm (argv[a],"-pool")  )
 	{
 	  reg_pool=1;
-	  
+	}
+	  else if (strm (argv[a],"-reg_extgap")  )
+	{
+	  reg_extgap=1;
 	}
       else if (strm (argv[a], "-method") || strm (argv[a], "-dpa_method") || strm (argv[a], "-reg_method"))
 	{
@@ -7402,6 +7427,10 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   if (reg_mintcs)
 	{
 	  set_int_variable("reg_mintcs", reg_mintcs);
+	}
+  if (reg_extgap)
+	{
+	  set_int_variable("reg_extgap", reg_extgap);
 	}
   
   

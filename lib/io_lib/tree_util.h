@@ -13,9 +13,11 @@ typedef struct ALNcol
   unsigned int whomoplasy;
   unsigned int whomoplasy2;
   //int id //put this back when debugging pointers
-struct ALNcol *next;
-};
-typedef struct ALNcol ALNcol;
+  ALNcol *next;
+  ALNcol *prev;
+
+}ALNcol;
+// typedef struct ALNcol ALNcol;
 
 typedef struct ALNseq
 {
@@ -410,5 +412,11 @@ int tcs2file (int **tcs, int n);
 
 int seqhomo2file(ALNseq **Se, Sequence *S, unsigned long aln_len);
 int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len);
+
+int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se, int seq, int subseq, int* gapcount, int* rescount, int **pos, int* lu);
+int msa2homoplasy_old(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, int seq, int subseq, int* gapcount, int* rescount);
+
+int update_seqhomo(int nseq, int ngap, int r, int** pos, int* lu, int* rescount, int seq, ALNseq**Se);
+int gapmatrix2display(int** matrix, int* lu, int seq, int nrow, int ncol, char *name);
 
 #endif

@@ -4704,6 +4704,13 @@ int is_rootpid()
   //
 }
 
+int vprint(char *string)
+{
+  int i=get_int_variable ("do_verbose");
+  if(i==1)printf("%s\n", string);
+  return i;
+}
+
 int shift_lock ( int from, int to, int from_type,int to_type, int action)
 {
   //action: SET (concatenate) or RESET (replace parent with child content)

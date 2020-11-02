@@ -63,6 +63,7 @@ struct Sequence
   int max_nseq;        		/*Maximum number of sequences in the datastruct*/
   char **name;         		/**< \c name[\c nseq ][\c MAXNAMELEN ] Names of the sequences */
   int **dc;         		/*coordinates on the disk. Coordinates set if seq[i]==NULL*/
+  int *reg_checked;   // 1 if sequence was already merged to big MSA in regressive mode
   
   struct Constraint_list *CL; /**< Points to the ::Constraint_list */
   int contains_gap;   		/**< Set to 1 if gaps should be kept */
