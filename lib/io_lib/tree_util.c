@@ -8501,7 +8501,6 @@ int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se
     int *rpos=(int*)vcalloc (A->len_aln, sizeof (int));
     int *rpos2=(int*)vcalloc (msa->prev->index+1, sizeof (int));
     int **pos2=(int**)declare_int (msa->next->nseq, msa->prev->index+1);
-    int clash=0;
 
     vprint("----running msa2homoplasy\n");
 
@@ -8608,12 +8607,11 @@ int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se
       c_start=rpos[r]+1; c_end=rpos[r+1];
       p_start=rpos2[r]+1; p_end=rpos2[r+1];
     }
-    if(get_int_variable("reg_extgap")==1){d1=c_end-c_start; d2=p_end-p_start;}
+    d1=c_end-c_start; d2=p_end-p_start;
 
     // if homoplasic clash
       if (d1>=1 && d2>=1)
     {
-        clash++;
         for(c=p_start; c<p_end; c++)
       {
         g_parent+=gapcount2[c]; r_parent+=rescount2[c];
