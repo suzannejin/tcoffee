@@ -21,10 +21,14 @@ typedef struct ALNcol
 
 typedef struct ALNseq
 {
-  unsigned int ngap;
-  unsigned int nres;
-  unsigned int msaGap;
-  float homoplasy;
+  unsigned int s_ngap;
+  unsigned int s_nres;
+  unsigned int s_msaGap;
+  unsigned int s_mergeGap;
+  float r_ngap;
+  float r_msaGap;
+  float r_mergeGap;
+  float r_homoplasy;
   int master;
 };
 typedef struct ALNseq ALNseq;
@@ -51,6 +55,7 @@ typedef struct ktnode
   KT_node *child;
   int nseq;
   char *name;//master sequence
+  int idx; //master seq index
   char *seqF;//sequence File
   char *msaF;//msa File
   char *treeF;//tree File
@@ -393,13 +398,14 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method);
 NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char *method);
 int ktree2parent_seq_bucketsF(KT_node K,char *fname);
 int ktree2seq_bucketsF(KT_node K,char *fname);
-int ktree2display(KT_node K,char *fname);
+int ktree2display(KT_node K,char *fname, Sequence *S);
 int kseq2kmsa   (NT_node T,KT_node *K, int n, char *method);
 
 char *tree2child_tree(NT_node T,char *seqF,char *treeF);
 char *reg_seq_file2msa_file (char *method,int nseq, char* seqF, char* msaF, char *treeF);
 char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se);
 int ktree2klist (KT_node K, KT_node *KL, int *n);
+int ktree2klist2 (KT_node K, KT_node *KL, int *n);
 KT_node tree2ktree (NT_node ROOT,NT_node T,Sequence *S, int N);
 Sequence* regtrim( Sequence *S,NT_node T,int N);
 
@@ -411,7 +417,7 @@ int tree2tcs (NT_node T, KT_node *KL, char *method, int n);
 int tcs2file (int **tcs, int n);
 
 int seqhomo2file(ALNseq **Se, Sequence *S, unsigned long aln_len);
-int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len);
+int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len, int* gapcount, int* msagapcount, ALNcol ***S2);
 
 int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se, int seq, int subseq, int* gapcount, int* rescount, int **pos, int* lu);
 int msa2homoplasy_old(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, int seq, int subseq, int* gapcount, int* rescount);

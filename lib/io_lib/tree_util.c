@@ -7880,7 +7880,7 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
   int N2;
   
   n=ktree2klist(K,KL,&n);
-  ktree2display (K, "1");
+  ktree2display (K, "1", S);
   if (getenv ("DUMP_SEQ_BUCKETS") ||getenv ("DUMP_SEQ_BUCKETS_ONLY"))
     {
       ktree2seq_bucketsF(K, "seqdump.1");
@@ -8075,27 +8075,44 @@ int seqhomo2file(ALNseq **Se, int n)
   int s;
 
   fp=vfopen (get_string_variable ("seq_homoplasy"), "w");
-  fprintf(fp, "seq master msaGap ngap nres homo\n");
+  fprintf(fp, "seq master s_msaGap s_mergeGap s_ngap s_nres r_homo r_ngap r_msaGap r_mergeGap\n");
   for(s=0; s<n; s++)
     {
-      fprintf(fp, "%d %d %u %u %u %.3f\n", s, Se[s]->master, Se[s]->msaGap, Se[s]->ngap, Se[s]->nres, Se[s]->homoplasy);
+      fprintf(fp, "%d %d %u %u %u %u %.3f %.3f %.3f %.3f\n", s, Se[s]->master, Se[s]->s_msaGap, Se[s]->s_mergeGap, Se[s]->s_ngap, Se[s]->s_nres, Se[s]->r_homoplasy, Se[s]->r_ngap, Se[s]->r_msaGap, Se[s]->r_mergeGap);
     }
   vfclose(fp);
 
   return 1;
 }
 
-int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len)
+int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len, int* gapcount, int* msagapcount, ALNcol ***S2)
 {
   // TODO check data types
-  unsigned int s, seqlen;
+  unsigned int s, c, seqlen;
+  int ng, nm, nM;
+  int msasize=S->nseq*aln_len;
 
   for (s=0; s<S->nseq; s++)
     {
       seqlen=S->len[s];
-      Se[s]->nres=seqlen;
-      Se[s]->ngap=aln_len-seqlen;
+      Se[s]->s_nres=seqlen;
+      Se[s]->s_ngap=aln_len-seqlen;
+      Se[s]->s_mergeGap = Se[s]->s_ngap - Se[s]->s_msaGap;
+
+      for (c=0; c<S->len[s]-1; c++)
+      {
+        // if no gap between residues
+        if (S2[s][c+1]->index - S2[s][c]->index == 1)
+        {
+            ng=gapcount[c]; nm=msagapcount[c]; nM=ng-nm;
+            Se[s]->r_ngap+=(float)ng/(float)msasize;  // update gappiness (responsibility of gaps)
+            Se[s]->r_msaGap+=(float)nm/(float)msasize;
+            Se[s]->r_mergeGap+=(float)nM/(float)msasize;
+        }
+      }
+
     }
+
   return 1;
 }
 
@@ -8244,6 +8261,9 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
        unsigned long long ngap2=0;
        unsigned long long msaGap=0;
        unsigned long len=0;
+
+       int *gapcount=(int*)vcalloc ( start->prev->index, sizeof (int));  // gap count by column
+       int *msagapcount=(int*)vcalloc ( start->prev->index, sizeof (int));  // msagap count by column
        
        while (msa->next)
 	 {
@@ -8255,7 +8275,12 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
 	   ngap2+=msa->ngap*msa->ngap;
      msaGap+=msa->msaGap;
 	   msa=msa->next;
-	   if (msa->aa>=0)len++;
+	   if (msa->aa>=0)
+     {
+       len++;
+       gapcount[msa->index]+=msa->ngap;
+       msagapcount[msa->index]+=msa->msaGap;
+     }
 	 }
        
        fp2=vfopen (get_string_variable ("homoplasy"), "w");
@@ -8272,9 +8297,10 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
 
     vprint("----finished writing homoplasy count\n");
 
-    seqgap2se(Se, S, len);
+    seqgap2se(Se, S, len, gapcount, msagapcount, S2);
     seqhomo2file(Se, S->nseq);
 
+    vfree(gapcount); vfree(msagapcount);
     }
 
   vfree (start);
@@ -8357,7 +8383,7 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, int seq,
       if (A->seq_al[s][c]=='-')
         {
           msagap[c]++; 
-          Se[ss]->msaGap++;
+          Se[ss]->s_msaGap++;
         }
     }
   }
@@ -8519,7 +8545,7 @@ int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se
     r=0;
     ALNcol*st=msa;
 
-    if(S->reg_checked[s]!=1)continue;
+    if(S->reg_checked[s]!=1)continue;  // continue loop if it is not a sequence already merged to parent
     lu2[ss]=s;
     if(s==seq)subseq2=ss;
 
@@ -8625,7 +8651,7 @@ int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se
         update_seqhomo(A->nseq, msa->next->nseq-1, c, pos, lu, rescount, subseq, Se);
       }
       S2[seq][r]->homoplasy++;
-      S2[seq][r]->whomoplasy+=MIN(d1, d2);
+      S2[seq][r]->whomoplasy+=MIN(d1-1, d2-1);  // -1 will only consider the homoplasic GAPS between residues r1 and r2. So distance will be in (r1,r2) not [r1,r2]
       S2[seq][r]->whomoplasy2+=MIN(pp, cc);
     }
   }
@@ -8665,9 +8691,9 @@ int update_seqhomo(int nseq, int ngap, int r, int** pos, int* lu, int* rescount,
       ss=lu[s]; 
       if(pos[s][r]>=0)   // if residue, so this sequence is one of the responsible of gaps
     {
-        nres=rescount[r]; 
-        val=(float)ngap/(float)nres;  // some other sequences could be the co-responsible of the gaps
-        Se[ss]->homoplasy+=val;
+        nres=rescount[r];   // some other sequences could be the co-responsible of the gaps
+        val=(float)ngap/(float)nres; 
+        Se[ss]->r_homoplasy+=val;
     }
   }
   return 1;
@@ -8879,19 +8905,20 @@ int ktree2parent_seq_bucketsF(KT_node K,char *fname)
     }
   return 1;
 }
-int ktree2display(KT_node K,char *fname)
+int ktree2display(KT_node K,char *fname, Sequence *S)
 {
 
   if (!K)return 0;
   else
     {
       int a;
-      fprintf (stderr, "!\t%-10s -- %10d Seq\n", fname, K->nseq);
+      int i =name_is_in_hlist(K->name,S->name, S->nseq);
+      fprintf (stderr, "!\t%-10s -- %10d Seq   --   MASTER %d %s\n", fname, K->nseq, i, K->name);
 
       for (a=0; a<K->nc; a++)
 	{
 	  char *nfname=csprintf(NULL, "%s.%d", fname, a+1);
-	  ktree2display(K->child[a],nfname); 
+	  ktree2display(K->child[a],nfname,S); 
 	  vfree (nfname);
 	}
     }
@@ -8926,6 +8953,62 @@ int ktree2klist (KT_node K, KT_node *KL, int *n)
     {
       ktree2klist (K->child[a],KL,n);
     }
+  return n[0];
+}
+/**
+ *  * Convert Ktree to Klist
+ *  This function is similar to the original function ktree2klist,
+ *  but it first orders the childs according to the master seq, before converting the ktree to klist.
+ *  This reordering step is aimed to facilitate the r_homo computation.
+ */
+int ktree2klist2 (KT_node K, KT_node *KL, int *n)
+{
+  int a, i, cM;
+  KT_node *cL=(KT_node*)vcalloc (K->nc, sizeof (KT_node));
+
+  if (!K) return n[0];
+  KL[n[0]++]=K;
+
+  if (K->nc==0)
+  {
+    ktree2klist (K->child[0],KL,n);
+  }
+  else
+  {
+    // get child with same master seq
+    cM=-1;
+    for (a=0; a<K->nc; a++)
+      {
+        if (strm(K->name, K->child[a]->name)) cM=a;
+      }
+
+    // reorder childs
+    if (cM>=0)
+    {
+      // child with same master seq
+      cL[0]=K->child[cM];
+
+      // other childs
+      for (a=0, i=1; a<K->nc; a++)
+      {
+        if (a!=cM) cL[i++]=K->child[a];
+      }
+    }
+    else
+    {
+      for (a=0; a<K->nc; a++)
+      {
+        cL[a]=K->child[a];
+      }
+    }
+
+    // update ktree and klist
+    for (a=0; a<K->nc; a++){
+      K->child[a]=cL[a];
+      ktree2klist2 (cL[a],KL,n);
+    }
+  }
+
   return n[0];
 }
 
