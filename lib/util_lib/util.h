@@ -533,7 +533,7 @@ char*printf_system2string (char *string, ...);
 int  printf_system_direct (char *string, ...);
 int  printf_system_direct_check (char *string, ...);
 
-int vprint(char *string);
+int vprint(char *string, ...);
 
 int my_system_cl (int argc, char *argv[]);
 int my_system ( char *command);

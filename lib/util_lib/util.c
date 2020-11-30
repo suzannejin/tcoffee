@@ -4704,10 +4704,17 @@ int is_rootpid()
   //
 }
 
-int vprint(char *string)
+int vprint(char *string, ...)
 {
   int i=get_int_variable ("do_verbose");
-  if(i==1)printf("%s\n", string);
+  if(i==1)
+    {
+      char *msg;
+      cvsprintf (msg, string);
+      printf("%s",msg);
+
+      vfree(msg);
+    }
   return i;
 }
 

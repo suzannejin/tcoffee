@@ -57,10 +57,15 @@ typedef struct ktnode
   char *name;//master sequence
   int idx; //master seq index
   char *seqF;//sequence File
-  char *msaF;//msa File
-  char *treeF;//tree File
-  
-  
+
+  char **msaF;
+  char **treeF;
+
+  // subMSA evaluation
+  int *tcs;
+  unsigned int *ngap;
+  unsigned int *homo;
+
   KT_node parent;
 }KTreenode;
 
@@ -394,12 +399,12 @@ NT_node tree2nni (NT_node T, NT_node S);
 
 KT_node* pool (KT_node *K1,int n1,int *n2, int N);
 
-char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method);
-NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char *method);
+char* tree2msa4dpa (NT_node T, Sequence *S, int N, char **method);
+NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char **method);
 int ktree2parent_seq_bucketsF(KT_node K,char *fname);
 int ktree2seq_bucketsF(KT_node K,char *fname);
 int ktree2display(KT_node K,char *fname, Sequence *S);
-int kseq2kmsa   (NT_node T,KT_node *K, int n, char *method);
+int kseq2kmsa   (NT_node T,KT_node *K, int n, char **method);
 
 char *tree2child_tree(NT_node T,char *seqF,char *treeF);
 char *reg_seq_file2msa_file (char *method,int nseq, char* seqF, char* msaF, char *treeF);
@@ -408,6 +413,7 @@ int ktree2klist (KT_node K, KT_node *KL, int *n);
 int ktree2klist2 (KT_node K, KT_node *KL, int *n);
 KT_node tree2ktree (NT_node ROOT,NT_node T,Sequence *S, int N);
 Sequence* regtrim( Sequence *S,NT_node T,int N);
+Alignment* read_aln_from_K(Alignment *A, KT_node K);
 
 KT_node *free_ktree (KT_node k);
 char * kmsa2msa_d (Sequence *S,KT_node K, int max, int *cn);
@@ -415,6 +421,7 @@ char * kmsa2msa_d (Sequence *S,KT_node K, int max, int *cn);
 KT_node *kl2treeF(NT_node T, KT_node *KL, int n);
 int tree2tcs (NT_node T, KT_node *KL, char *method, int n);
 int tcs2file (int **tcs, int n);
+unsigned int msa2ngap(Alignment *A);
 
 int seqhomo2file(ALNseq **Se, Sequence *S, unsigned long aln_len);
 int seqgap2se(ALNseq**Se, Sequence *S, unsigned long aln_len, int* gapcount, int* msagapcount, ALNcol ***S2);

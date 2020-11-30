@@ -7134,9 +7134,10 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   char *alnfile=NULL;
   char *dpa_weight=NULL;
   int dpa_nseq=0;
-  char *dpa_aligner=NULL;
-  char *command;
+  int max_command=10;
+  char **command;
   char *run_name=NULL;
+  char *evaluate_submsa=NULL;
   Fname *F=NULL;
   char *cache=NULL;
   float *w;
@@ -7161,9 +7162,12 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   sprintf (se_name, "stderr");
   le=get_stdout1(se_name);
   
-  
-  command=(char*)vcalloc (10000, sizeof (char));
-  sprintf ( command, "#");
+  // prepare aligner CL
+  command=declare_char(max_command, 1000);
+  for(int aa=0; aa<max_command; aa++)
+    {
+	  command[aa]=NULL;
+    }
   
   //default values
   set_int_variable ("swlN",50);
@@ -7287,7 +7291,18 @@ Alignment * t_coffee_dpa (int argc, char **argv)
 	}
       else if (strm (argv[a], "-method") || strm (argv[a], "-dpa_method") || strm (argv[a], "-reg_method"))
 	{
-	  dpa_aligner=argv[++a];
+	  command[0]=(char*)vcalloc (10000, sizeof (char));
+      sprintf ( command[0], "%s", argv[++a]);
+	}
+	  else if (strm (argv[a], "-method2") || strm (argv[a], "-dpa_method2") || strm (argv[a], "-reg_method2"))
+	{
+	  command[1]=(char*)vcalloc (10000, sizeof (char));
+      sprintf ( command[1], "%s", argv[++a]);
+	}
+	  else if (strm(argv[a], "-evaluate_submsa"))
+	{
+	  evaluate_submsa=argv[++a];
+	  set_string_variable("evaluate_submsa", evaluate_submsa);
 	}
       else if (strm (argv[a], "-cache"))
 	{
@@ -7380,18 +7395,19 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   cputenv ("cache_4_CLTCOFFEE=%s", get_cache_4_tcoffee());
   
   //prepare the aligner CL
-  if (dpa_aligner)
+  if (command[0]==NULL)
     {
-      
-      command=(char*)vcalloc (10000, sizeof (char));
-      sprintf ( command, "%s", dpa_aligner);
+      command[0]=(char*)vcalloc (10000, sizeof (char));
+      sprintf (command[0], "clustalo_msa");
     }
-  else
-    {
-      command=(char*)vcalloc (10000, sizeof (char));
-      sprintf (command, "clustalo_msa");
-    }
-  
+  int aa=0;
+  while(command[aa]!=NULL)
+	{
+	  aa++;
+	}
+  max_command=aa;
+  set_int_variable("max_command", max_command);
+
 
   //prepare output names
   //output the MSA
@@ -7411,7 +7427,8 @@ Alignment * t_coffee_dpa (int argc, char **argv)
       set_string_variable("homoplasy", homoplasy);
 	  set_string_variable("seq_homoplasy", seq_homoplasy);
     }
-  if (reg_tcs)
+//   if (reg_tcs || strm(evaluate_submsa, "tcs"))
+	if(reg_tcs)
 	{
 	  sprintf (reg_tcs, "%s.tcs", F->name);
 	  set_string_variable("reg_tcs", reg_tcs);
@@ -7483,9 +7500,15 @@ Alignment * t_coffee_dpa (int argc, char **argv)
   fprintf ( le, "!Compute Weights --- done\n");
   
   //run the alignment
-  fprintf (le, "!Compute MSA --- reg_method %s -- reg_nseq %d -- start\n", command, dpa_nseq);
+  fprintf(le, "!Compute MSA --- reg_method ");
+  for (int aa=0; aa<max_command; aa++)
+	{
+	  if(command[aa]!=NULL)fprintf(le, "%s ", command[aa]);
+	}
+  fprintf (le, "-- reg_nseq %d -- start\n", dpa_nseq);
+
   T=node2master (T, S, w);
-  
+
   alnfile=tree2msa4dpa(T, S, dpa_nseq, command);
   fprintf ( le, "!Compute MSA --- done\n");
  
@@ -7507,6 +7530,7 @@ Alignment * t_coffee_dpa (int argc, char **argv)
     }
   
   //terminate
+  free_char(command, -1);
   fprintf (le,"\n\n");
   print_command_line (le);
   print_mem_usage (le, "REG memory Usage");

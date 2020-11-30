@@ -7770,7 +7770,7 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa,int seq, 
 
 NT_node kmsa2dnd(Sequence *S,KT_node *KL, int n);
 
-NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char *method)
+NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char **method)
 {
   int n=0;
   char *outname;
@@ -7795,7 +7795,7 @@ NT_node tree2dnd4dpa (NT_node T, Sequence *S, int N, char *method)
  */
 KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
 {
-  int a,b, cn;
+  int a,b, cn, nc;
   int pool=0;
   KT_node*K2;
   int n2;
@@ -7803,6 +7803,7 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
   Sequence *S;
   char *tmp;
   FILE *fp;
+  int ncommand=get_int_variable("max_command");
 
   //for ( a=0; a<n1; a++){if (K1[a]->nseq<N)pool=1;}
   //if (!pool)return NULL;
@@ -7826,8 +7827,11 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
       if ( cn==0)
 	{ // start: defines the tmp files
 	  K2[n2]->seqF=vtmpnam (NULL);
-	  K2[n2]->msaF=vtmpnam (NULL);
-	  K2[n2]->treeF=vtmpnam (NULL);
+    for (nc=0; nc<ncommand; nc++)
+      {
+        K2[n2]->msaF[nc]=vtmpnam (NULL);
+        K2[n2]->treeF[nc]=vtmpnam (NULL);
+      }
 	  n2++;
 	}
       a=nseq[b][0];
@@ -7837,7 +7841,7 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
       printf_system ("cat %s >> %s", K1[a]->seqF, K2[n2-1]->seqF);  
 
       // update K1, since K2's nodes might include several K1's node, this should be indicated in K1 and link the correct files
-      K1[a]->msaF=K2[n2-1]->msaF;
+      for(nc=0; nc<ncommand; nc++){K1[a]->msaF[nc]=K2[n2-1]->msaF[nc];}
       
       if (cn>=N)
         {
@@ -7865,7 +7869,8 @@ KT_node*pool (KT_node *K1,int n1,int *n2in, int N)
 }
 
 
-char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
+
+char* tree2msa4dpa (NT_node T, Sequence *S, int N, char **method)
 {
   int n=0;
   char *outname;
@@ -7901,12 +7906,14 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
       
       for (a=0; a<n; a++)
 	{
-	  //Be carefull not to overwrite msaF: it is common to all the pooled buckets 
-	  char *tmp=vtmpnam (NULL);
-	  trim_fastaF_big  ( KL[a]->msaF, KL[a]->seqF,tmp, NULL, NULL, NULL);
-	  KL[a]->msaF=tmp;
-	  ungap_fastaF_big ( KL[a]->msaF, KL[a]->msaF, 100);
-
+	    //Be carefull not to overwrite msaF: it is common to all the pooled buckets 
+      for(int nc=0; nc<get_int_variable("max_command"); nc++)
+    {
+      char *tmp=vtmpnam (NULL);
+      trim_fastaF_big  ( KL[a]->msaF[nc], KL[a]->seqF,tmp, NULL, NULL, NULL);
+      KL[a]->msaF[nc]=tmp;
+      ungap_fastaF_big ( KL[a]->msaF[nc], KL[a]->msaF[nc], 100);
+    }
 	  vfree(KL2[a]);
 	}
       vfree (KL2);
@@ -7932,7 +7939,8 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
  * * Determine child treeF for each knode
  * Call tree2child_tree for each knode:
  *    1. prune if -child_tree=parent
- *    2. otherwise output 'default' to dynamic.pl
+ *    2. otherwise output 'default' or <method name> to dynamic.pl
+ *          Notice that for default option, the default tree for the specified aligner will be used
  * 
  * The treeF obtained in case 1 will be useful for kmsa computation (in case 2 the tree is implicit during kmsa computation with dynamic.pl script),
  * but it will be also useful to retrieve n sequences from each kmsa for TCS computation.
@@ -7941,92 +7949,124 @@ char* tree2msa4dpa (NT_node T, Sequence *S, int N, char *method)
  */
 KT_node *kl2treeF(NT_node T, KT_node *KL, int n)
 {
-  int a;
+  int a, b;
+  int ncommand=get_int_variable("max_command");
+
   for (a=0; a<n; a++)
     {
-      KL[a]->treeF=tree2child_tree(T,KL[a]->seqF,getenv("child_tree_4_TCOFFEE"));
+      // get child tree for method 1
+      KL[a]->treeF[0]=tree2child_tree(T,KL[a]->seqF,getenv("child_tree_4_TCOFFEE"));
+
+      // TODO allow alternative child guide tree method
+      // for alternative aligner method
+      if (ncommand>1)
+      {
+        for(b=1; b<ncommand; b++)
+          {
+              if (getenv("child_tree_4_TCOFFEE")=="parent" || getenv("child_tree_4_TCOFFEE")=="master")
+            {
+              KL[a]->treeF[b]=vtmpnam (NULL);
+              printf_system("cat %s > %s\n", KL[a]->treeF[0], KL[a]->treeF[b]);
+            }
+            else KL[a]->treeF[b]=tree2child_tree(T,KL[a]->seqF,getenv("child_tree_4_TCOFFEE"));
+          }
+      }
     }
-  vprint("----finished pruning child tree if parent, recording default option if child\n");
+  vprint("----finished pruning child tree if parent, recording <default | method name> option if child\n");
   return KL;
 }
 
 /**
- * * COMPUTE TCS
- * it computes TCS for each subMSA, calculates the statistics (min, max, avg, sum), and writes the values to a file
+ * * COMPUTE TCS for each subMSA
  * input - KT_node *KL : array of KT_node
  *       - char *method : method used to compute the library. Default=proba_pair
  *       - int n : length of KT_node
- * return  int **tcs : 2d array { tcs=[number of node][0], nseq=[number of seqs][1] }
- * 
  * TODO check why calling t_coffee to compute the libraries using mafft_msa method does not work (library size 0) whereas it does work when calling from CL
  */
 int tree2tcs (NT_node T, KT_node *KL, char *method, int n)
 {
-  int i,b;
+  int i, ncommand, nc;
   char *tcsfile;
   FILE *fp;
-  int **tcs;
-  int min_seq, ntcs;
+  int *tcs;
   KT_node *KL2;
+
+  // number of alignment methods
+  ncommand=get_int_variable("max_command");
 
   // library method
   method=get_string_variable("reg_tcsmethod");
   if(method==NULL)method="proba_pair";
 
   // min sequences required to compute tcs. default=5
-  min_seq=get_int_variable("reg_mintcs"); 
+  int min_seq=get_int_variable("reg_mintcs"); 
 
-  // subMSA size for tcs
-  ntcs=get_int_variable("reg_ntcs");
+  // subMSA size for tcs (in case the bucket size N is too big for TCS computation)
+  int ntcs=get_int_variable("reg_ntcs");
+
+  vprint("----running tree2tcs with method %s for %d subMSAs of minimum %d sequences\n", method, n, min_seq);
+
+  // declare KL2
   KL2=(KT_node*)vcalloc (n, sizeof (KT_node));
-  for (i=0; i<n; i++)KL2[i]=(KT_node)vcalloc (1, sizeof (KTreenode));
+  for (i=0; i<n; i++)
+    {
+      KL2[i]=(KT_node)vcalloc (1, sizeof (KTreenode));
+      KL2[i]->msaF=(char**)declare_char(ncommand, 10000);
+      KL2[i]->treeF=(char**)declare_char(ncommand, 10000);
+    }
 
   // * compute TCS
-  tcs=declare_int(n, 2); 
-  for (b=0, i=0; i<n; i++)
+    for(nc=0; nc<ncommand; nc++)
+  {
+      for(i=0; i<n; i++)
     {
-
-      if ((ntcs>0) && (KL[i]->nseq>ntcs)) // if ntcs specified by user, trim the subMSAs
-    {
-      KL2[i]->nseq=ntcs;
-      KL2[i]->msaF=vtmpnam (NULL);
-      printf_system("t_coffee -other_pg seq_reformat -in %s -in2 %s -action +regtrim %d > %s", KL[i]->msaF, KL[i]->treeF, ntcs, KL2[i]->msaF);
-    }
-      else
-    {
-      KL2[i]->nseq=KL[i]->nseq;
-      KL2[i]->msaF=KL[i]->msaF;
-    }
-
-      if (KL[i]->nseq >= min_seq) 
-    {
-        
-        // compute library and determine TCS score
-        tcsfile=vtmpnam (NULL);
-        printf_system("t_coffee -infile %s -evaluate -method %s -outfile %s -output score_ascii\n", KL2[i]->msaF, method, tcsfile);
-        
-        // read tcs score from tmp
-        char line[128];
-        char search[12]="SCORE=";
-        char *d="=";
-        char *match, *match2;
-        fp=vfopen(tcsfile, "r");
-        while( fgets(line, sizeof line, fp)!=NULL )
+      // trim subMSA, if required
+      if ((ntcs>0) && (KL[i]->nseq>ntcs)) 
         {
-          match=strstr(line,search);    // this will return SCORE=%d
-          match2=strtok(match, d);      // token point to the part before the =
-          match2=strtok(NULL, d);       // token point to the part after the =
-          if (match2){break;}  
+          KL2[i]->nseq=ntcs;
+          KL2[i]->msaF[nc]=vtmpnam (NULL);
+          printf_system("t_coffee -other_pg seq_reformat -in %s -in2 %s -action +regtrim %d > %s", KL[i]->msaF[nc], KL[i]->treeF[nc], ntcs, KL2[i]->msaF[nc]);
         }
-        vfclose(fp);
-        tcs[b][0]=atoi(match2); tcs[b][1]=KL2[i]->nseq;
-        b++;
+      else
+        {
+          KL2[i]->nseq=KL[i]->nseq;
+          KL2[i]->msaF[nc]=KL[i]->msaF[nc];
+        }
+    
+
+      // allocate tcs
+      if(nc==0)KL[i]->tcs=(int*)vcalloc(ncommand, sizeof(int));
+      if (KL[i]->nseq >= min_seq) 
+        {
+          // compute library and determine TCS score
+          tcsfile=vtmpnam (NULL);
+          printf_system("t_coffee -infile %s -evaluate -method %s -outfile %s -output score_ascii\n", KL2[i]->msaF[nc], method, tcsfile);
+          
+          // read tcs score from tmp
+          char line[128];
+          char search[12]="SCORE=";
+          char *d="=";
+          char *match, *match2;
+          fp=vfopen(tcsfile, "r");
+          while( fgets(line, sizeof line, fp)!=NULL )
+          {
+            match=strstr(line,search);    // this will return SCORE=%d
+            match2=strtok(match, d);      // token point to the part before the =
+            match2=strtok(NULL, d);       // token point to the part after the =
+            if (match2){break;}  
+          }
+          vfclose(fp);
+          KL[i]->tcs[nc]=atoi(match2);
+        }
+      else
+        {
+          KL[i]->tcs[nc]=-1;
+        }
     }
-    }
-  tcs2file(tcs, b);
+  }
   printf("----finished computing TCS score\n");
 
-  vfree(KL2); vfree(tcs);
+  vfree(KL2); 
   return 1;
 }
 
@@ -8132,6 +8172,52 @@ ALNseq* declare_alnseq ()
   return q;
 }
 
+Alignment* read_aln_from_K(Alignment *A, KT_node K)
+{
+  int nc;
+  int mm=0;
+  int ncommand=get_int_variable("max_command");
+  char *evaluate=get_string_variable("evaluate_submsa");
+
+  vprint("----running read_aln_from_K\n");
+  if(strm(evaluate, "ngap") && ncommand>1)
+    {
+      Alignment *B;
+      unsigned int ngap;
+      unsigned int pre;
+
+      B=quick_read_fasta_aln(NULL, K->msaF[0]);
+      pre=msa2ngap(B);
+      A=B;
+      for(nc=1; nc<ncommand; nc++)
+        {
+          B=quick_read_fasta_aln(NULL, K->msaF[nc]);
+          ngap=msa2ngap(B);
+          if(ngap<pre){A=B;pre=ngap;mm=nc;}
+        }
+      vprint("read_aln_from_K: method %d is used to chose alignment [seq:%d][len:%d]\n", mm, A->nseq, A->len_aln);
+      // free_aln (B);
+    }
+  else A=quick_read_fasta_aln (A,K->msaF[0]);
+
+  return A;
+}
+
+unsigned int msa2ngap(Alignment *A)
+{
+  int s, c;
+  unsigned int ngap;
+
+  for(s=0; s<A->nseq; s++)
+  {
+    for(c=0; c<A->len_aln; c++)
+    {
+      if(A->seq_al[s][c]=='-')ngap++;
+    }
+  }
+  return ngap;
+}
+
 char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
 {
   int a, s, c;
@@ -8153,7 +8239,8 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
           S2[s]=(ALNcol**)vcalloc (S->len[s], sizeof (ALNcol*));
           Se[s]=declare_alnseq();
         }
-      A=quick_read_fasta_aln (A,K->msaF);
+
+      A=read_aln_from_K(A, K);
       
       start=msa2graph(A,S, S2,start, -1, Se);
       out=vtmpnam (NULL);
@@ -8162,7 +8249,7 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
   for (a=0; a<K->nc; a++)
     {
       int i =name_is_in_hlist((K->child[a])->name,S->name, S->nseq);
-      A=quick_read_fasta_aln (A,K->child[a]->msaF);
+      A=read_aln_from_K(A, K->child[a]);
       start=msa2graph (A,S, S2,start,i, Se);
       kmsa2msa (K->child[a], S, S2,start, Se);
     }
@@ -8361,7 +8448,7 @@ ALNcol * msa2graph (Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, int seq,
       if (lu[s]==seq)subseq=s;  // seq = position of master sequence in S, s = its position in A
     }
 
-  vprint("----finished creating a look up section for child pos[s][c]\n");
+  vprint("----finished creating a look up section for child pos[s][c] [seq:%d][len:%d]\n", A->nseq, A->len_aln);
 
   
   // * Count the number of gaps and residues in the subMSA A (excluding master seq) 
@@ -8571,7 +8658,7 @@ int msa2homoplasy(Alignment *A, Sequence *S, ALNcol***S2, ALNcol*msa, ALNseq**Se
       }
     ss++;
   }
-  vprint("----finished creating a look up section for parent pos2[s][c]\n");
+  vprint("----finished creating a look up section for parent pos2[s][c] [seq:%d][len:%d]\n", msa->next->nseq, msa->prev->index+1);
 
 
   // * Count the number of gaps and residues in parent (excluding master seq) 
@@ -8880,14 +8967,18 @@ int ktree2aln_bucketsF(KT_node K,char *fname)
   else
     {
       char *nfname=(char*)vcalloc (1000, sizeof (char));
-      int a;
+      int a, nc;
+      int ncommand=get_int_variable("max_command");
       
       for (a=0; a<K->nc; a++)
 	{
-	  sprintf (nfname, "%s.%d.aln_bucket",fname, a+1);
-	  printf_system ("cp %s %s", K->msaF, nfname);
-	  sprintf (nfname, "%s.%d",fname, a+1);
-	  ktree2seq_bucketsF (K->child[a],nfname); 
+      for(nc=0; nc<ncommand; nc++)
+    {
+      sprintf (nfname, "%s.%d.%d.aln_bucket",fname, a+1, nc);
+      printf_system ("cp %s %s", K->msaF[nc], nfname);
+    }
+      sprintf (nfname, "%s.%d",fname, a+1);
+      ktree2seq_bucketsF (K->child[a],nfname); 
 	}
       vfree (nfname);
     }
@@ -9218,10 +9309,17 @@ KT_node tree2ktree (NT_node ROOT,NT_node T,Sequence *S, int N)
     }
   vfclose (fp);
   
-  
-  
-  K->msaF=vtmpnam(NULL);
+
+  // allocate msaF and treeF
+  int ncommand=get_int_variable("max_command");
+  K->msaF=(char **)declare_char(ncommand, 10000);
+  for(a=0; a<ncommand; a++)
+    {
+      K->msaF[a]=vtmpnam(NULL);
+    }
+  K->treeF=(char **)declare_char(ncommand, 10000);
     
+
   K->child=(KT_node*)vcalloc (nc, sizeof (KT_node));
   K->tot=1;
     
@@ -9260,27 +9358,28 @@ KT_node *free_ktree (KT_node K)
   return NULL;
 }
   
-int kseq2kmsa_serial   (NT_node T,KT_node *K, int n, char *method);
-int kseq2kmsa_nextflow (NT_node T,KT_node *K, int n, char *method);
-int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method);
+int kseq2kmsa_serial   (NT_node T,KT_node *K, int n, char **method);
+int kseq2kmsa_nextflow (NT_node T,KT_node *K, int n, char **method);
+int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char **method);
 
-int kseq2kmsa   (NT_node T,KT_node *K, int n, char *method)
+int kseq2kmsa   (NT_node T,KT_node *K, int n, char **method)
 {
   int nproc=get_nproc();
   
-    
-  if ( strstr (method, "NF_"))
-    return kseq2kmsa_nextflow(T,K, n, method);
+  // * avoid NF, until several aligner methods are correctly implemented in this part of the code
+  // if ( strstr (method, "NF_") )
+  //   return kseq2kmsa_nextflow(T,K, n, method);
   
   return kseq2kmsa_thread (T,K, n, method);
 }
   
 
-int kseq2kmsa_nextflow   (NT_node T,KT_node *K, int n, char *met)
+int kseq2kmsa_nextflow   (NT_node T,KT_node *K, int n, char **mett)
 {
   int a;
   char *in=vtmpnam (NULL);
   char *out=vtmpnam (NULL);
+  char *met=mett[0];   
   TC_method *method=method_file2TC_method(method_name2method_file(met+3));
   char *command=make_aln_command (method,"inputfile", "outputfile");
  
@@ -9292,7 +9391,7 @@ int kseq2kmsa_nextflow   (NT_node T,KT_node *K, int n, char *met)
   for (a=0; a<n; a++)
     {
       fprintf (fp1, "%s %s\n", K[a]->seqF);
-      fprintf (fp2, "%s %s\n", K[a]->msaF);
+      fprintf (fp2, "%s %s\n", K[a]->msaF);  // just set [0] for the moment to avoid errors, it should be modified to be able to read the array of aligner methods in the future
     }
   vfclose (fp1);
   vfclose (fp2);
@@ -9326,16 +9425,17 @@ return treeF;
 
     
 
-int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method)
+int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char **method)
 {
   int nproc=get_nproc();
   
   int * njobs;
   KT_node **KL;
   int npid;
-  int failed=0;
-  int a, b;
+  int a, b, nc;
   int nt=0;
+  int ncommand=get_int_variable("max_command");
+  char *str;  
   //split the jobs
  
   KL=(KT_node**)vcalloc(nproc+1, sizeof (KT_node*));
@@ -9365,19 +9465,22 @@ int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method)
 	    {
 	      KT_node LK=KL[a][b];
 	      initiate_vtmpnam(NULL);//make sure existing tmp are not deleted when exiting.
-        // LK->treeF=tree2child_tree(T,LK->seqF,getenv("child_tree_4_TCOFFEE"));
-	      reg_seq_file2msa_file (method,LK->nseq,LK->seqF, LK->msaF, LK->treeF);
+        char * mm=(char*)vcalloc (10000, sizeof (char));
+        for(nc=0; nc<ncommand; nc++)
+          {
+            sprintf(mm, "%s %s", mm, method[nc]);
+            reg_seq_file2msa_file (method[nc],LK->nseq,LK->seqF, LK->msaF[nc], LK->treeF[nc]);
+          }
+        vprint("%s [%d][%d]\n", mm, a, b);
 	      b++;
-	      if ( a==0)
-		output_completion (stderr, b, njobs[0], 100, method);
-	     
+	      if ( a==0)output_completion (stderr, b, njobs[0], 100, mm);  
 	    }
 	  myexit (EXIT_SUCCESS);
 	}
-      else
-	{
-	  a++;
-	}
+    else
+  {
+    a++;
+  }
     }
   
   //collect the jobs
@@ -9387,9 +9490,21 @@ int kseq2kmsa_thread   (NT_node T,KT_node *K, int n, char *method)
       vwait(NULL);
     }
   
-  for ( a=0; a<n; a++)failed+=(check_file_exists (K[a]->msaF))?0:1;
-  if (failed>0)
-    printf_exit ( EXIT_FAILURE,stderr, "\nERROR: method %s failed to produce %d out of %d node alignments [FATAL]", method, failed, n);
+  // check failed alignments
+  int f=0;
+  for(nc=0; nc<ncommand; nc++)
+    {
+      vprint("started checking jobs for method %d [%s]\n", nc+1, method[nc]);
+      int ff=0;
+      for ( a=0; a<n; a++)
+      {
+        ff+=(check_file_exists (K[a]->msaF[nc]))?0:1;
+      }
+      f+=ff;
+      if(ff>0)fprintf(stderr, "\nERROR: method %s failed to produce %d out of %d node alignments [FATAL]", method[nc], ff, n);
+    }
+  if (f>0)
+    printf_exit(EXIT_FAILURE,stderr, "\nERROR: failed to produce a total of %d node alignments[FATAL]", f);
   else
     fprintf (stderr, "\n!All Jobs collected\n");
   
@@ -9484,7 +9599,7 @@ ALN_node* kmsa2graph_multi (Sequence *S, KT_node K,Alignment *A0, ALN_node **lu0
 	      ALN_node *aln;
 	      initiate_vtmpnam(NULL);
 	      aln=kmsa2graph (S,K->child[a],A0,lu0,list,ns,done, max);
-	      graph2aln (S,aln,ns[0],(K->child[a])->msaF);
+	      graph2aln (S,aln,ns[0],(K->child[a])->msaF[0]);
 	      myexit (EXIT_SUCCESS);
 	    }
 	  else
@@ -9554,8 +9669,7 @@ NT_node kmsa2dnd (Sequence *S,KT_node *KL, int n)
   
   for (a=0; a<n; a++)
     {
-      
-      Alignment *A=quick_read_aln (KL[a]->msaF);
+      Alignment *A=read_aln_from_K (NULL, KL[a]);
       int * lu =(int*) vcalloc (A->nseq, sizeof (int));
       int **pos=(int**)declare_int (A->nseq, A->len_aln);
       output_completion (stderr,a,n, 100, "Incorporating Children MSA to produce guide tree");
@@ -9759,7 +9873,7 @@ ALN_node* kmsa2graph (Sequence *S,KT_node K,Alignment *A0, ALN_node **lu0, ALN_n
   
   if (!A0)
     {
-      A0=quick_read_aln (K->msaF);
+      A0=quick_read_aln (K->msaF[0]);  // TODO aligner method 0 to avoid error for the moment, fix this later on to allow several aligner methods
       lu0=msa2graph (S,A0, NULL);
       for (a=0; a<A0->nseq; a++)list[ns[0]++]=lu0[a][0];
       reset_output_completion ();
@@ -9768,7 +9882,7 @@ ALN_node* kmsa2graph (Sequence *S,KT_node K,Alignment *A0, ALN_node **lu0, ALN_n
   for (a=0; a<K->nc; a++)
     {
       ALN_node m, s, t;
-      A1 =quick_read_aln ((K->child[a])->msaF);
+      A1 =quick_read_aln ((K->child[a])->msaF[0]);
       ALN_node **lu1=msa2graph (S,A1, NULL);
       int i0=name_is_in_list ((K->child[a])->name,A0->name, A0->nseq,MAXNAMES);
       int i1=name_is_in_list ((K->child[a])->name,A1->name, A1->nseq,MAXNAMES);
@@ -9831,7 +9945,7 @@ ALN_node* kmsa2graph_seq (Sequence *S,KT_node K,Alignment *A0, ALN_node **lu0, A
   
   if (!A0)
     {
-      A0=quick_read_aln (K->msaF);
+      A0=quick_read_aln (K->msaF[0]);
       lu0=msa2graph (S,A0, NULL);
       for (a=0; a<A0->nseq; a++)list[ns[0]++]=lu0[a][0];
       reset_output_completion ();
@@ -9844,7 +9958,7 @@ ALN_node* kmsa2graph_seq (Sequence *S,KT_node K,Alignment *A0, ALN_node **lu0, A
       static char **seq1;
       
       ALN_node m, s, t;
-      A1 =quick_read_aln ((K->child[a])->msaF);
+      A1 =quick_read_aln ((K->child[a])->msaF[0]);
       ALN_node **lu1=msa2graph (S,A1, NULL);
       int i0=name_is_in_list ((K->child[a])->name,A0->name, A0->nseq,MAXNAMES);
       int i1=name_is_in_list ((K->child[a])->name,A1->name, A1->nseq,MAXNAMES);
@@ -10412,7 +10526,7 @@ unsigned long* kmsa2graph_d (Sequence *S,KT_node K,Alignment *A0, unsigned long 
   
   if (!A0)
     {
-      A0=quick_read_aln (K->msaF);
+      A0=quick_read_aln (K->msaF[0]);
       lu0=msa2graph_d (S,A0, NULL);
       for (a=0; a<A0->nseq; a++)list[ns[0]++]=lu0[a][0];
     }  
@@ -10420,7 +10534,7 @@ unsigned long* kmsa2graph_d (Sequence *S,KT_node K,Alignment *A0, unsigned long 
   for (a=0; a<K->nc; a++)
     {
       unsigned long m, s, t;
-      A1 =quick_read_aln ((K->child[a])->msaF);
+      A1 =quick_read_aln ((K->child[a])->msaF[0]);
       unsigned long **lu1=msa2graph_d (S,A1, NULL);
       int i0=name_is_in_list ((K->child[a])->name,A0->name, A0->nseq,MAXNAMES);
       int i1=name_is_in_list ((K->child[a])->name,A1->name, A1->nseq,MAXNAMES);
