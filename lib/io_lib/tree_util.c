@@ -8195,7 +8195,7 @@ Alignment* read_aln_from_K(Alignment *A, KT_node K)
           ngap=msa2ngap(B);
           if(ngap<pre){A=B;pre=ngap;mm=nc;}
         }
-      vprint("read_aln_from_K: method %d is used to chose alignment [seq:%d][len:%d]\n", mm, A->nseq, A->len_aln);
+      vprint("read_aln_from_K: method %d is used to chose alignment [seq:%d][len:%d]\n", mm+1, A->nseq, A->len_aln);
       // free_aln (B);
     }
   else A=quick_read_fasta_aln (A,K->msaF[0]);
@@ -8386,13 +8386,17 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
 
     seqgap2se(Se, S, len, gapcount, msagapcount, S2);
     seqhomo2file(Se, S->nseq);
+    vprint("----finished writing seq_homoplasy file\n");
 
     vfree(gapcount); vfree(msagapcount);
     }
+  vprint("----finished freeing gapcount and msagapcount\n");
 
   vfree (start);
   for (s=0; s<S->nseq; s++){vfree (S2[s]); vfree(Se[s]);}
   vfree (S2); vfree(Se);
+
+  vprint("----finished freeing msa, S2, Se\n");
   
   return out;
 }
