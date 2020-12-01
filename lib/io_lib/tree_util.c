@@ -8349,8 +8349,8 @@ char *kmsa2msa (KT_node K,Sequence *S, ALNcol***S2,ALNcol*start, ALNseq**Se)
        unsigned long long msaGap=0;
        unsigned long len=0;
 
-       int *gapcount=(int*)vcalloc ( start->prev->index, sizeof (int));  // gap count by column
-       int *msagapcount=(int*)vcalloc ( start->prev->index, sizeof (int));  // msagap count by column
+       int *gapcount=(int*)vcalloc ( start->prev->index+1, sizeof (int));  // gap count by column
+       int *msagapcount=(int*)vcalloc ( start->prev->index+1, sizeof (int));  // msagap count by column
        
        while (msa->next)
 	 {
